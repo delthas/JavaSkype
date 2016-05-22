@@ -17,7 +17,7 @@ This API lets you:
 
 JavaSkype requires Java >= 8 to run. It uses Maven. It should soon be available on Maven central or another well-known repository. Meanwhile, it is hosted here in ./repo, so add this to your pom.xml to use this library:
 
-```pom.xml
+```xml
 <repositories>
     <repository>        
             <id>delthas</id>
