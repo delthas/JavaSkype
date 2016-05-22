@@ -1,8 +1,10 @@
 # java files
 
 *.class
-*.jar
 hs_err_pid*
+*.jar
+# but not our repo files
+!repo/*
 
 
 # maven files
