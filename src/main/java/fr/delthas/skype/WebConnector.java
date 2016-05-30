@@ -175,7 +175,7 @@ class WebConnector {
     session = r.cookie("skype-session");
     sessionToken = r.cookie("skype-session-token");
     if (session == null || sessionToken == null) {
-      throw new ParseException();
+      throw new ParseException("Error while getting skype token: " + r.body());
     }
   }
 
