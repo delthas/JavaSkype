@@ -12,7 +12,7 @@ TARGET_DIR = target
 JAVA_DIR = java
 
 CFLAGS = -I$(SKYLOGIN_DIR)/include -Iopenssl/include -I$(JAVA_DIR) -O3 -D NDEBUG
-CONFIGURE_OPTIONS = no-shared threads
+CONFIGURE_OPTIONS = no-shared threads no-zlib no-comp
 
 all: linux32 linux64 windows32 windows64
 
