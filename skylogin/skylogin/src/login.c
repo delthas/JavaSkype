@@ -307,7 +307,7 @@ static int SendAuthentificationBlobLS(Skype_Inst *pInst, LSConnection *pConn, co
 	memset(ecount_buf, 0, AES_BLOCK_SIZE);
 	AES_ctr128_encrypt(MarkObjL, MarkObjL, Size, &AesKey, ivec, ecount_buf, &Idx);
 
-	Crc = crc32(MarkObjL, Size, -1);
+	Crc = _crc32(MarkObjL, Size, -1);
 	*Browser++ = *((uchar *)(&Crc) + 0);
 	*Browser++ = *((uchar *)(&Crc) + 1);
 

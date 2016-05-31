@@ -42,7 +42,7 @@ Memory_U Credentials_Write(Skype_Inst *pInst)
 	memcpy(Browser, pInst->LoginD.SignedCredentials.Memory, pInst->LoginD.SignedCredentials.MsZ);
 	Browser+=pInst->LoginD.SignedCredentials.MsZ;
 #ifdef WIN32
-	Crc = crc32(creds.Memory, Browser-creds.Memory, -1);
+	Crc = _crc32(creds.Memory, Browser-creds.Memory, -1);
 	*Browser++ = *((uchar *)(&Crc) + 0);
 	*Browser++ = *((uchar *)(&Crc) + 1);
 #endif
@@ -67,7 +67,7 @@ int Credentials_Read(Skype_Inst *pInst, Memory_U creds, SResponse *LoginDatas)
 		return -1;
 
 #ifdef WIN32
-	Crc = crc32(creds.Memory, creds.MsZ-2, -1);
+	Crc = _crc32(creds.Memory, creds.MsZ-2, -1);
 	if (*((uchar *)(&Crc) + 0) != *((uchar*)creds.Memory+creds.MsZ-2) ||
 		*((uchar *)(&Crc) + 1) != *((uchar*)creds.Memory+creds.MsZ-1))
 	{
