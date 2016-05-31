@@ -30,7 +30,7 @@ JavaSkype requires Java >= 8 to run. It uses Maven. It should soon be available 
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.0</version>
+           <version>1.0.1</version>
     </dependency>
 </dependencies>
 ```
