@@ -108,12 +108,12 @@ Memory_U Credentials_Load(char *pszUser)
 	sprintf (szKey, "SOFTWARE\\FakeSkype\\%s", pszUser);
 	if (RegCreateKeyA(HKEY_LOCAL_MACHINE, szKey, &hKey) == ERROR_SUCCESS)
 	{
-		if (RegQueryValueExA(hKey, "Credentials", NULL, NULL, NULL, &creds.MsZ) == ERROR_SUCCESS &&
+		if (RegQueryValueExA(hKey, "Credentials", NULL, NULL, NULL, (LPDWORD)&creds.MsZ) == ERROR_SUCCESS &&
 			creds.MsZ)
 		{
 			if (!(creds.Memory = malloc(creds.MsZ)))
 				creds.MsZ = 0;
-			if (creds.Memory && RegQueryValueExA(hKey, "Credentials", NULL, NULL, creds.Memory, &creds.MsZ) != ERROR_SUCCESS)
+			if (creds.Memory && RegQueryValueExA(hKey, "Credentials", NULL, NULL, creds.Memory, (LPDWORD)&creds.MsZ) != ERROR_SUCCESS)
 			{
 				free(creds.Memory);
 				ZeroMemory(&creds, sizeof(creds));

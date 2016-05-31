@@ -20,28 +20,28 @@ $(OPENSSL_TARGET)/l32libcrypto.a:
 	mkdir -p $(OPENSSL_TARGET)
 	make -C openssl clean
 	cd openssl && ./Configure linux-generic32 -m32 -fPIC $(CONFIGURE_OPTIONS) && cd ..
-	make -C openssl depend build_crypto
+	$(MAKE) -C openssl depend build_crypto
 	cp openssl/libcrypto.a $@
 
 $(OPENSSL_TARGET)/l64libcrypto.a:
 	mkdir -p $(OPENSSL_TARGET)
 	make -C openssl clean
 	cd openssl && ./Configure linux-x86_64 -fPIC $(CONFIGURE_OPTIONS) && cd ..
-	make -C openssl depend build_crypto
+	$(MAKE) -C openssl depend build_crypto
 	cp openssl/libcrypto.a $@
 
 $(OPENSSL_TARGET)/w32libcrypto.a:
 	mkdir -p $(OPENSSL_TARGET)
 	make -C openssl clean
 	cd openssl && ./Configure --cross-compile-prefix=i686-w64-mingw32- mingw -m32 $(CONFIGURE_OPTIONS) && cd ..
-	make -C openssl depend build_crypto
+	$(MAKE) -C openssl depend build_crypto
 	cp openssl/libcrypto.a $@
 
 $(OPENSSL_TARGET)/w64libcrypto.a:
 	mkdir -p $(OPENSSL_TARGET)
 	make -C openssl clean
 	cd openssl && ./Configure --cross-compile-prefix=x86_64-w64-mingw32- mingw64 $(CONFIGURE_OPTIONS) && cd ..
-	make -C openssl depend build_crypto
+	$(MAKE) -C openssl depend build_crypto
 	cp openssl/libcrypto.a $@
 
 $(TARGET_DIR)/linux32/libskylogin.so: $(OPENSSL_TARGET)/l32libcrypto.a

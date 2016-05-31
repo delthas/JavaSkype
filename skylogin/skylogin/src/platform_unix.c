@@ -11,6 +11,9 @@
  * Module:       UNIX platform specific functions
  *
  */
+#include <sys/stat.h>
+#include <ctype.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/utsname.h>
 #include <sys/types.h>
