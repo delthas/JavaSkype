@@ -30,7 +30,7 @@ JavaSkype requires Java >= 8 to run. It uses Maven. It should soon be available 
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.1</version>
+           <version>1.0.0</version>
     </dependency>
 </dependencies>
 ```
@@ -122,10 +122,9 @@ sudo apt-get install gcc-mingw-w64 --no-install-recommends
 # Download and extract OpenSSL (skylogin needs it)
 # I have only tried with 1.0.2h (the lastest version at the current time)
 wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
-# Extract it and name the folder "openssl"
-gunzip openssl-* && tar xf openssl-*
-rm openssl-*.tar
-mv openssl-* openssl
+# Extract it to the folder "openssl"
+tar xf openssl-1.0.2h.tar.gz -C openssl --strip-components=1
+rm openssl-*.tar.gz
 
 # Now you're ready to make
 # Either make all four libraries (might take quite some time):

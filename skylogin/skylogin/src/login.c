@@ -16,6 +16,7 @@
 #include "random.h"
 #include "platform.h"
 #include "crc.h"
+#include <unistd.h>
 #ifdef _DEBUG
 #include <time.h>
 #endif
