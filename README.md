@@ -120,12 +120,11 @@ cd skylogin
 sudo apt-get install gcc-mingw-w64 --no-install-recommends
 
 # Download and extract OpenSSL (skylogin needs it)
-# I have only tried with 1.0.2h (the lastest version at the current time)
+# I have only tried with 1.0.2h (the latest version at the current time)
 wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
-# Extract it and name the folder "openssl"
-gunzip openssl-* && tar xf openssl-*
-rm openssl-*.tar
-mv openssl-* openssl
+# Extract it to the folder "openssl"
+tar xf openssl-1.0.2h.tar.gz -C openssl --strip-components=1
+rm openssl-*.tar.gz
 
 # Now you're ready to make
 # Either make all four libraries (might take quite some time):
@@ -140,7 +139,7 @@ make clean
 ## Misceallenous
 
 ### Version
-1.0.0
+1.0.1
 
 ### Tech
 
