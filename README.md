@@ -116,6 +116,9 @@ There are 4 possible targets: linux 32 bits, linux 64 bits, windows 32 bits, win
 # Get in the skylogin directory
 cd skylogin
 
+# Install the basic utils needed for compiling, for example, on Debian:
+sudo apt-get install binutils libc6-dev-i36 libc6-dev gcc binutils
+
 # Install gcc-mingw-w64. for example, on Debian:
 sudo apt-get install gcc-mingw-w64 --no-install-recommends
 
