@@ -15,22 +15,14 @@ This API lets you:
 
 ## Install
 
-JavaSkype requires Java >= 8 to run. It uses Maven. It should soon be available on Maven central or another well-known repository. Meanwhile, it is hosted here in ./repo, so add this to your pom.xml to use this library:
+JavaSkype requires Java >= 8 to run. You can get this library using Maven by adding this to your ```pom.xml```:
 
 ```xml
-<repositories>
-    <repository>        
-            <id>delthas</id>
-            <name>javaskype</name>
-            <url>https://github.com/delthas/javaskype/raw/master/repo</url>
-    </repository>
-</repositories>        
- 
  <dependencies>
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.1</version>
+           <version>1.0.2</version>
     </dependency>
 </dependencies>
 ```
@@ -142,7 +134,7 @@ make clean
 ## Misceallenous
 
 ### Version
-1.0.1
+1.0.2
 
 ### Tech
 

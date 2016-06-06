@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,12 +48,15 @@ class NotifConnector {
 
   }
 
-  private static final String EPID = "00155193-decb-dc89-95e0-43bd987ed463";
+  private static final String EPID = generateEPID(); // generate EPID at runtime
   private static final String DEFAULT_SERVER_HOSTNAME = "s.gateway.messenger.live.com";
   private static final int DEFAULT_SERVER_PORT = 443;
   private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
   private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.]+):(\\d+)");
+  private static final long pingInterval = 5 * 60000000000L; // minutes
+  private long lastMessageSentTime;
+  private Thread pingThread;
   private final DocumentBuilder documentBuilder;
   private final Skype skype;
   private final String username, password;
@@ -77,6 +81,7 @@ class NotifConnector {
   }
 
   private void processPacket(Packet packet) throws IOException {
+    // System.out.println("<<<" + packet.command + " " + packet.params + "\n" + packet.body);
     switch (packet.command) {
       case "GET":
         if (packet.params.equals("MSGR")) {
@@ -271,10 +276,8 @@ class NotifConnector {
         sendPacket("GET", "MSGR\\RECENTCONVERSATIONS", "<recentconversations><start>0</start><pagesize>100</pagesize></recentconversations>");
         break;
       case "OUT":
-        // sometimes the connection will timeout with:
-        // OUT\CON <out><reason>SessionTimeout</reason></out>
-        // TODO try to reconnect instead of throwing
-        skype.error(new IOException());
+        // we got disconnected
+        skype.error(new IOException("Disconnected: " + packet.body));
         break;
       case "PUT":
         break;
@@ -347,6 +350,7 @@ class NotifConnector {
   }
 
   public void connect() throws IOException, InterruptedException {
+    lastMessageSentTime = System.nanoTime();
     connectTo(DEFAULT_SERVER_HOSTNAME, DEFAULT_SERVER_PORT);
     new Thread(() -> {
       while (!disconnectRequested) {
@@ -357,6 +361,11 @@ class NotifConnector {
           }
           processPacket(packet);
         } catch (IOException e) {
+          if (disconnectRequested) {
+            // there may be errors reading from the closed stream when disconnecting
+            // quit without throwing
+            return;
+          }
           skype.error(e);
           connectLatch.countDown();
           break;
@@ -364,7 +373,27 @@ class NotifConnector {
       }
     }, "Skype-Receiver-Thread").start();
 
+    pingThread = new Thread(() -> {
+      while (!disconnectRequested) {
+        if (System.nanoTime() - lastMessageSentTime > pingInterval) {
+          try {
+            sendPacket("PNG", "CON", "");
+          } catch (IOException e) {
+            skype.error(e);
+            break;
+          }
+        }
+        try {
+          Thread.sleep(pingInterval / 1000000);
+        } catch (InterruptedException e) {
+          // stop sleeping early
+        }
+      }
+    }, "Skype-Ping-Thread");
+
     connectLatch.await(); // block until connected
+
+    pingThread.start();
   }
 
   public void sendUserMessage(User user, String message) throws IOException {
@@ -418,6 +447,7 @@ class NotifConnector {
       // we're closing anyway
     }
     disconnectRequested = true;
+    pingThread.interrupt();
     connectLatch.countDown();
     if (socket != null) {
       try {
@@ -434,6 +464,8 @@ class NotifConnector {
         body.getBytes(StandardCharsets.UTF_8).length + 2 + headerString.length(), headerString, body);
     writer.write(messageString);
     writer.flush();
+    lastMessageSentTime = System.nanoTime();
+    // System.out.println(">>>" + messageString);
   }
 
   private void connectTo(String hostname, int port) throws IOException {
@@ -549,6 +581,33 @@ class NotifConnector {
       return null;
     }
     return fields.get(0);
+  }
+
+  private static String generateEPID() {
+    char[] hexCharacters = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    // EPID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    char[] EPIDchars = new char[36];
+    EPIDchars[8] = '-';
+    EPIDchars[13] = '-';
+    EPIDchars[18] = '-';
+    EPIDchars[23] = '-';
+    Random random = new Random();
+    for (int i = 0; i < 8; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 9; i < 13; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 14; i < 18; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 19; i < 23; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 24; i < 36; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    return new String(EPIDchars);
   }
 
 }

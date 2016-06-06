@@ -53,10 +53,10 @@ public class Skype {
 
   /**
    * Calls {@code connect(Presence.CONNECTED)}.
-   * 
+   *
    * @throws IOException If an error is thrown while connecting.
    * @throws InterruptedException If the connection is interrupted.
-   * 
+   *
    * @see #connect(Presence)
    */
   public void connect() throws IOException, InterruptedException {
