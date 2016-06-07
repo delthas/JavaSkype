@@ -118,6 +118,7 @@ sudo apt-get install gcc-mingw-w64 --no-install-recommends
 # I have only tried with 1.0.2h (the latest version at the current time)
 wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
 # Extract it to the folder "openssl"
+mkdir openssl
 tar xf openssl-1.0.2h.tar.gz -C openssl --strip-components=1
 rm openssl-*.tar.gz
 
