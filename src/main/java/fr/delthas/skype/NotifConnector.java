@@ -281,6 +281,9 @@ class NotifConnector {
         break;
       case "PUT":
         break;
+      case "PNG":
+        // ignore pong
+        break;
       default:
         System.out.println("Received unknown message: " + packet);
     }
