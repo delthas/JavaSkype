@@ -21,6 +21,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.jsoup.Jsoup;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -145,9 +146,9 @@ class NotifConnector {
                 break;
               }
               if (receiver instanceof Group) {
-                skype.groupMessageReceived((Group) receiver, (User) sender, formatted.body);
+                skype.groupMessageReceived((Group) receiver, (User) sender, getPlaintext(formatted.body));
               } else {
-                skype.userMessageReceived((User) sender, formatted.body);
+                skype.userMessageReceived((User) sender, getPlaintext(formatted.body));
               }
               break;
             case "ThreadActivity/AddMember":
@@ -159,7 +160,7 @@ class NotifConnector {
               skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
               break;
             case "ThreadActivity/TopicUpdate":
-              skype.groupTopicChanged((Group) sender, getXMLField(formatted.body, "value"));
+              skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
               break;
             case "ThreadActivity/RoleUpdate":
               Document doc = getDocument(formatted.body);
@@ -611,6 +612,10 @@ class NotifConnector {
       EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
     }
     return new String(EPIDchars);
+  }
+
+  private static String getPlaintext(String string) {
+    return Jsoup.parseBodyFragment(string).text();
   }
 
 }
