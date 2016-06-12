@@ -52,7 +52,7 @@ class NotifConnector {
   private static final String EPID = generateEPID(); // generate EPID at runtime
   private static final String DEFAULT_SERVER_HOSTNAME = "s.gateway.messenger.live.com";
   private static final int DEFAULT_SERVER_PORT = 443;
-  private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
+  private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+|\\d+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
   private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.]+):(\\d+)");
   private static final long pingInterval = 5 * 60000000000L; // minutes
@@ -95,14 +95,47 @@ class NotifConnector {
           }
           switch (mainNode) {
             case "recentconversations-response":
-              List<String> conversations = getXMLFields(packet.body, "id");
+              NodeList conversationNodes;
+              try {
+                Document doc = getDocument(packet.body);
+                conversationNodes = doc.getElementsByTagName("conversation");
+              } catch (ParseException e) {
+                break;
+              }
               StringBuilder sb = new StringBuilder("<threads>");
-              for (String conversation : conversations) {
-                Object group = parseEntity(conversation);
-                if (!(group instanceof Group)) {
-                  continue;
+              outer: for (int i = 0; i < conversationNodes.getLength(); i++) {
+                Node conversation = conversationNodes.item(i);
+                String id = null;
+                boolean isThread = false;
+                NodeList conversationChildren = conversation.getChildNodes();
+                for (int j = 0; j < conversationChildren.getLength(); j++) {
+                  Node child = conversationChildren.item(j);
+                  if (child.getNodeName().equals("id")) {
+                    id = child.getTextContent();
+                  } else if (child.getNodeName().equals("thread")) {
+                    isThread = true;
+                    NodeList threadNodes = child.getChildNodes();
+                    for (int k = 0; k < threadNodes.getLength(); k++) {
+                      Node threadNode = threadNodes.item(k);
+                      // if there's a node named "lastleaveat", we've left this group
+                      // do not show it in our group list
+                      if (threadNode.getNodeName().equals("lastleaveat")) {
+                        continue outer;
+                      }
+                    }
+                  } else if (child.getNodeName().equals("messages")) {
+                    if (!child.hasChildNodes()) {
+                      // messages is empty, this probably means we've left this group
+                      // do not show it in our group list
+                      continue outer;
+                    }
+                  }
                 }
-                sb.append("<thread><id>19:").append(((Group) group).getId()).append("@thread.skype</id></thread>");
+                if (id == null || !isThread) {
+                  continue outer;
+                }
+                Group group = (Group) parseEntity(id);
+                sb.append("<thread><id>19:").append(group.getId()).append("@thread.skype</id></thread>");
               }
               String body = sb.append("</threads>").toString();
               sendPacket("GET", "MSGR\\THREADS", body);
@@ -341,6 +374,11 @@ class NotifConnector {
       }
     }
     String payload = new String(payloadRaw, StandardCharsets.UTF_8);
+
+    if (command.matches("\\d+")) {
+      throw new ParseException("Error message received:\n" + new Packet(command, parameters, payload).toString());
+    }
+
     Matcher matcherHeaders = patternHeaders.matcher(payload);
     if (!matcherHeaders.find()) {
       throw new ParseException();
