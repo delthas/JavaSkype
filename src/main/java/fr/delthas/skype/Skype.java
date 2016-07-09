@@ -13,9 +13,12 @@ import java.util.Map;
  * <p>
  * All IO exceptions that might be thrown by any action are catched and passed to the registered error listener and disconnect the interface
  * immediately.
+ * <p>
+ * <b>Note:</b> All strings passed to user/group/skype objects will have their control characters removed (0x00-0x1F and 0x7F-0x9F) except for CR and
+ * LF which will be replaced with CRLF if needed.
  *
  */
-public class Skype {
+public final class Skype {
 
   private final String username;
   private final String password;

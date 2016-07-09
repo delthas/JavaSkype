@@ -326,13 +326,13 @@ class NotifConnector {
   private Packet readPacket() throws IOException, ParseException {
     StringBuilder firstLineBuilder = new StringBuilder();
     byte[] oneByteBuffer = new byte[1];
-    boolean CRFlag = false;
+    boolean crFlag = false;
     while (true) {
       if (inputStream.read(oneByteBuffer) == -1) {
         return null;
       }
       char character = (char) (oneByteBuffer[0] & 0xFF);
-      if (CRFlag) {
+      if (crFlag) {
         if (character == '\n') {
           break;
         }
@@ -342,7 +342,7 @@ class NotifConnector {
         break;
       }
       if (character == '\r') {
-        CRFlag = true;
+        crFlag = true;
       } else {
         firstLineBuilder.append(character);
       }
@@ -373,6 +373,7 @@ class NotifConnector {
         break;
       }
     }
+
     String payload = new String(payloadRaw, StandardCharsets.UTF_8);
 
     if (command.matches("\\d+")) {
@@ -439,11 +440,11 @@ class NotifConnector {
   }
 
   public void sendUserMessage(User user, String message) throws IOException {
-    sendMessage("8:" + user.getUsername(), message);
+    sendMessage("8:" + user.getUsername(), getSanitized(message));
   }
 
   public void sendGroupMessage(Group group, String message) throws IOException {
-    sendMessage("19:" + group.getId() + "@thread.skype", message);
+    sendMessage("19:" + group.getId() + "@thread.skype", getSanitized(message));
   }
 
   public void addUserToGroup(User user, Role role, Group group) throws IOException {
@@ -459,7 +460,8 @@ class NotifConnector {
   }
 
   public void changeGroupTopic(Group group, String topic) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), topic);
+    String body =
+        String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
 
@@ -654,6 +656,40 @@ class NotifConnector {
 
   private static String getPlaintext(String string) {
     return Jsoup.parseBodyFragment(string).text();
+  }
+
+  private static String getSanitized(String raw) {
+    if (raw.isEmpty())
+      return raw;
+    StringBuilder sb = new StringBuilder(raw.length());
+    boolean crFlag = false;
+    for (int i = 0; i < raw.length(); i++) {
+      char c = raw.charAt(i);
+      if (c <= 0x1F || (c >= 0x7F && c <= 0x9F)) {
+        if (c == '\r') {
+          if (crFlag) {
+            sb.append('\r').append('\n');
+          }
+          crFlag = true;
+        } else if (c == '\n') {
+          sb.append('\r').append('\n');
+          crFlag = false;
+        } else if (crFlag) {
+          sb.append('\r').append('\n');
+          crFlag = false;
+        }
+      } else {
+        if (crFlag) {
+          sb.append('\r').append('\n');
+        }
+        crFlag = false;
+        sb.append(c);
+      }
+    }
+    if (crFlag) {
+      sb.append('\r').append('\n');
+    }
+    return sb.toString();
   }
 
 }
