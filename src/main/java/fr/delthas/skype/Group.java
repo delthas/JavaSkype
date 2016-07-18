@@ -35,7 +35,7 @@ public class Group {
     skype.sendGroupMessage(this, message);
   }
 
-  String getId() {
+  public String getId() {
     return id;
   }
 
