@@ -35,6 +35,13 @@ public class Group {
     skype.sendGroupMessage(this, message);
   }
 
+  /**
+   * The id of a group is a special String used by Skype to uniquely identify groups.
+   * <p>
+   * In case you know about network IDs and the like: if a group "adress" is "19:xxx@thread.skype", its id is "xxx".
+   * 
+   * @return The id of the group.
+   */
   public String getId() {
     return id;
   }
