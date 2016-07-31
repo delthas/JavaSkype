@@ -22,7 +22,7 @@ JavaSkype requires Java >= 8 to run. You can get this library using Maven by add
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.6</version>
+           <version>1.0.7</version>
     </dependency>
 </dependencies>
 ```
@@ -102,40 +102,10 @@ Note that this API doesn't support multithreaded calls: if you want to go for so
 ### Compiling the Java part of the library
 Run ```maven package```.
 
-### Compiling the C part of the library (with JNI) (the hard part)
-There are 4 possible targets: linux 32 bits, linux 64 bits, windows 32 bits, windows 64 bits. Each of these will produce a shared library in their corresponding target directory. Here are the instructions for a 64 bits linux environment. No need to have a JDK: the headers from Java 8 are already in ./skylogin/java.
-```sh
-# Get in the skylogin directory
-cd skylogin
-
-# Install the basic utils needed for compiling, for example, on Debian:
-sudo apt-get install binutils libc6-dev-i36 libc6-dev gcc binutils
-
-# Install gcc-mingw-w64. for example, on Debian:
-sudo apt-get install gcc-mingw-w64 --no-install-recommends
-
-# Download and extract OpenSSL (skylogin needs it)
-# I have only tried with 1.0.2h (the latest version at the current time)
-wget https://www.openssl.org/source/openssl-1.0.2h.tar.gz
-# Extract it to the folder "openssl"
-mkdir openssl
-tar xf openssl-1.0.2h.tar.gz -C openssl --strip-components=1
-rm openssl-*.tar.gz
-
-# Now you're ready to make
-# Either make all four libraries (might take quite some time):
-make all
-# Or make only one of them (choose among linux32, linux64, windows32, windows64)
-make windows64
-
-# make clean works if you want to clean up everything
-make clean
-```
-
 ## Misceallenous
 
 ### Version
-1.0.6
+1.0.7
 
 ### Tech
 
@@ -144,14 +114,7 @@ JavaSkype uses a very small set of libraries in order to run:
 * [json](http://mvnrepository.com/artifact/org.json/json) - Parse JSON responses from the Skype API
 * [JSoup](https://jsoup.org) - A lightweight and powerful library to parse HTML documents
 * [JUnit](http://junit.org) - The famous testing library
-* [skylogin](https://github.com/msndevs/skylogin) - A **C** API to compute a token for Skype authentication (called with JNI)
-* [OpenSSL](https://www.openssl.org) - You should know what this is
 
-### Todos
-
- - Write Tests
- - Add user search
- - Add better error handling and recovery
 
 License
 ----

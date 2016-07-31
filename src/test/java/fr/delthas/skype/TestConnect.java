@@ -25,4 +25,8 @@ public class TestConnect {
     skype.disconnect();
   }
 
+  public static void main(String... strings) {
+    new TestConnect().testConnect();
+  }
+
 }

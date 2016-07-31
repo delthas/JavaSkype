@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.delthas</groupId>
 	<artifactId>javaskype</artifactId>
-	<version>1.0.6</version>
+	<version>1.0.7</version>
 
 	<name>JavaSkype</name>
 	<url>https://github.com/delthas/javaskype</url>
@@ -134,11 +134,6 @@
 				</configuration>
 			</plugin>
 		</plugins>
-		<resources>
-			<resource>
-				<directory>skylogin/target</directory>
-			</resource>
-		</resources>
 	</build>
 
 </project>

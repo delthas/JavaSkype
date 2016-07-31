@@ -7,9 +7,9 @@ import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -82,7 +82,7 @@ class NotifConnector {
   }
 
   private void processPacket(Packet packet) throws IOException {
-    // System.out.println("<<<" + packet.command + " " + packet.params + "\n" + packet.body);
+    // System.out.println(LocalDateTime.now().format(DateTimeFormatter.ISO_TIME) + "<<<" + packet.command + " " + packet.params + "\n" + packet.body);
     switch (packet.command) {
       case "GET":
         if (packet.params.equals("MSGR")) {
@@ -270,11 +270,13 @@ class NotifConnector {
         if (nonce == null) {
           throw new ParseException();
         }
-        // we *need* to make sure these are not null to avoid going APPCRASH
-        Objects.requireNonNull(username);
-        Objects.requireNonNull(password);
-        Objects.requireNonNull(nonce);
-        String uic = SkyLoginConnector.getUIC(username, password, nonce);
+
+        String uic;
+        try {
+          uic = UicConnector.getUIC(username, password, nonce);
+        } catch (GeneralSecurityException e) {
+          throw new RuntimeException(e);
+        }
         sendPacket("ATH", "CON\\USER", "<user><uic>" + uic + "</uic><id>" + username + "</id></user>");
         break;
       case "ATH":
@@ -282,12 +284,10 @@ class NotifConnector {
             "<msgr><ver>2</ver><client><name>.</name><ver>.</ver><networks>skype</networks></client><epid>" + EPID + "</epid></msgr>");
         break;
       case "BND":
-        // apparently no challenge is needed anymore, but skype may put it back in the future
         String challenge = getXMLField(packet.body, "nonce");
         if (challenge != null) {
-          String query = Challenge.createQuery(challenge);
-          sendPacket("PUT", "MSGR\\CHALLENGE",
-              "<challenge><appId>" + Challenge.PRODUCT_ID + "</appId><response>" + query + "</response></challenge>");
+          skype.error(new IOException(
+              "Skype sent a nonce in the BND request, but it shouldn't do so anymore. If you see this error please open an issue on https://github.com/Delthas/JavaSkype/issues"));
         }
         String formattedPublicationBody = String.format(
             "<user><s n=\"IM\"><Status>%s</Status></s><sep n=\"IM\" epid=\"{%s}\"><Capabilities>0:4194560</Capabilities></sep><s n=\"SKP\"><Mood/><Skypename>%s</Skypename></s><sep n=\"SKP\" epid=\"{%s}\"><Version>.</Version><Seamless>true</Seamless></sep></user>",
@@ -509,7 +509,7 @@ class NotifConnector {
     writer.write(messageString);
     writer.flush();
     lastMessageSentTime = System.nanoTime();
-    // System.out.println(">>>" + messageString);
+    // System.out.println(LocalDateTime.now().format(DateTimeFormatter.ISO_TIME) + " >>>" + messageString);
   }
 
   private void connectTo(String hostname, int port) throws IOException {
