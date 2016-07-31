@@ -54,7 +54,7 @@ class NotifConnector {
   private static final int DEFAULT_SERVER_PORT = 443;
   private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+|\\d+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
-  private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.]+):(\\d+)");
+  private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.\\-]+):(\\d+)");
   private static final long pingInterval = 30 * 1000000000L; // seconds
   private long lastMessageSentTime;
   private Thread pingThread;
