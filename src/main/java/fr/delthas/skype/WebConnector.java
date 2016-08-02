@@ -1,18 +1,10 @@
 package fr.delthas.skype;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -80,63 +72,26 @@ class WebConnector {
   }
 
   private void updateContacts() throws IOException {
-    String selfDisplayNameResponse = sendRequest(Method.GET, "/users/self/displayname").body();
-    JSONObject selfDisplayNameJSON = new JSONObject(selfDisplayNameResponse);
-    skype.getUser(username).setDisplayName(selfDisplayNameJSON.optString("displayname", ""));
-
     String selfResponse = sendRequest(Method.GET, "/users/self/profile").body();
     JSONObject selfJSON = new JSONObject(selfResponse);
     updateUser(selfJSON, false);
 
-    String response = sendRequest(Method.GET, "/users/self/contacts", "hideDetails", "true").body();
-    JSONArray contactsArray = new JSONArray(response);
-
-    List<String> contacts = new ArrayList<>(contactsArray.length());
-    for (int i = 0; i < contactsArray.length(); i++) {
-      try {
-        JSONObject contactObject = contactsArray.getJSONObject(i);
-        String contactSkypename = contactObject.getString("skypename");
-        if (contactObject.getBoolean("blocked") || !contactObject.getBoolean("authorized") || contactSkypename.equalsIgnoreCase("echo123")) {
-          continue;
-        }
-        contacts.add(contactSkypename);
-        skype.addContact(contactSkypename);
-      } catch (JSONException e) {
-        throw new ParseException(e);
-      }
-    }
-
-    JSONObject data = new JSONObject();
-    JSONArray usernamesArray = new JSONArray();
-    for (String username : contacts) {
-      usernamesArray.put(username);
-    }
-    data.put("usernames", usernamesArray);
-    String profilesResponse = sendRequestJson(Method.POST, "/users/batch/profiles", data.toString());
-    try {
-      JSONArray profilesJSON = new JSONArray(profilesResponse);
-      for (int i = 0; i < profilesJSON.length(); i++) {
-        updateUser(profilesJSON.getJSONObject(i), false);
-      }
-    } catch (JSONException e) {
-      throw new ParseException(e);
-    }
-
-    String filterString = contacts.stream().map(u -> "id eq '" + u + "'").collect(Collectors.joining(" or "));
-    profilesResponse =
+    String filterString = "authorized eq true and blocked eq false and suggested eq false";
+    String profilesResponse =
         sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + username + "/contacts?$filter=" + filterString, true).body();
     try {
       JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
       for (int i = 0; i < profilesJSON.length(); i++) {
-        updateUser(profilesJSON.getJSONObject(i), true);
+        User user = updateUser(profilesJSON.getJSONObject(i), true);
+        if (!user.getUsername().equalsIgnoreCase("echo123"))
+          skype.addContact(user.getUsername());
       }
     } catch (JSONException e) {
       throw new ParseException(e);
     }
-
   }
 
-  private void updateUser(JSONObject userJSON, boolean newContactType) throws ParseException {
+  private User updateUser(JSONObject userJSON, boolean newContactType) throws ParseException {
     String userUsername;
     String userFirstName = null;
     String userLastName = null;
@@ -178,6 +133,7 @@ class WebConnector {
     user.setFirstName(getPlaintext(userFirstName));
     user.setLastName(getPlaintext(userLastName));
     user.setMood(getPlaintext(userMood));
+    return user;
   }
 
   private void generateTokens() throws IOException {
@@ -206,7 +162,7 @@ class WebConnector {
       throw new ParseException(e);
     }
 
-    Document doc = Jsoup.connect("https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com%2F").get();
+    Document doc = Jsoup.connect("https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com%2F").timeout(10000).get();
 
     Elements pieElements = doc.select("#pie");
     Elements etmElements = doc.select("#etm");
@@ -217,7 +173,7 @@ class WebConnector {
     String pie = pieElements.get(0).val();
     String etm = etmElements.get(0).val();
 
-    Response r = Jsoup.connect("https://login.skype.com/login").ignoreContentType(true).method(Method.POST).data("username", username)
+    Response r = Jsoup.connect("https://login.skype.com/login").timeout(10000).ignoreContentType(true).method(Method.POST).data("username", username)
         .data("password", password).data("pie", pie).data("etm", etm).execute();
     session = r.cookie("skype-session");
     sessionToken = r.cookie("skype-session-token");
@@ -227,8 +183,8 @@ class WebConnector {
   }
 
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
-    Connection conn =
-        Jsoup.connect(absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath)).method(method).ignoreContentType(true).ignoreHttpErrors(true);
+    Connection conn = Jsoup.connect(absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath)).timeout(10000).method(method).ignoreContentType(true)
+        .ignoreHttpErrors(true);
     if (skypeToken != null && session != null && sessionToken != null) {
       conn.header("X-Skypetoken", skypeToken);
       conn.cookie("skype-session", session);
@@ -240,31 +196,6 @@ class WebConnector {
 
   private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
     return sendRequest(method, apiPath, false, keyval);
-  }
-
-  private String sendRequestJson(Method method, String apiPath, String content) throws IOException {
-    // can't use jsoup to post simple body because of issue https://github.com/jhy/jsoup/issues/627
-    // when https://github.com/jhy/jsoup/pull/734 is merged, replace this with jsoup code
-    HttpURLConnection conn = (HttpURLConnection) new URL(SERVER_HOSTNAME + apiPath).openConnection();
-    conn.setRequestMethod(method.toString());
-    if (skypeToken != null && session != null && sessionToken != null) {
-      conn.addRequestProperty("X-Skypetoken", skypeToken);
-      conn.addRequestProperty("Cookie", "skype-session=" + session + ";skype-session-token=" + sessionToken);
-    }
-    conn.addRequestProperty("Content-Type", "application/json");
-    conn.setDoOutput(true);
-    try (BufferedOutputStream bos = new BufferedOutputStream(conn.getOutputStream())) {
-      bos.write(content.getBytes(StandardCharsets.UTF_8));
-    }
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    try (BufferedInputStream bis = new BufferedInputStream(conn.getInputStream())) {
-      byte[] sink = new byte[1024];
-      int n;
-      while ((n = bis.read(sink)) != -1) {
-        baos.write(sink, 0, n);
-      }
-    }
-    return baos.toString(StandardCharsets.UTF_8.name());
   }
 
   private static String getPlaintext(String string) {
