@@ -140,26 +140,38 @@ public class User {
   }
 
   void setFirstName(String firstname) {
+    if (firstname == null || firstname.isEmpty())
+      return;
     this.firstname = firstname;
   }
 
   void setLastName(String lastname) {
+    if (lastname == null || lastname.isEmpty())
+      return;
     this.lastname = lastname;
   }
 
   void setMood(String mood) {
+    if (mood == null || mood.isEmpty())
+      return;
     this.mood = mood;
   }
 
   void setCountry(String country) {
+    if (country == null || country.isEmpty())
+      return;
     this.country = country;
   }
 
   void setCity(String city) {
+    if (city == null || city.isEmpty())
+      return;
     this.city = city;
   }
 
   void setDisplayName(String displayName) {
+    if (displayName == null || displayName.isEmpty())
+      return;
     this.displayName = displayName;
   }
 

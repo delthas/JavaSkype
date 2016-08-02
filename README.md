@@ -22,7 +22,7 @@ JavaSkype requires Java >= 8 to run. You can get this library using Maven by add
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.8</version>
+           <version>1.0.9</version>
     </dependency>
 </dependencies>
 ```
@@ -99,8 +99,7 @@ Note that this API doesn't support multithreaded calls: if you want to go for so
 
 ## Building
 
-### Compiling the Java part of the library
-Run ```maven package```.
+Simply run ```maven package```.
 
 ## Misceallenous
 

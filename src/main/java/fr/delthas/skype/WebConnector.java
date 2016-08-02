@@ -1,12 +1,18 @@
 package fr.delthas.skype;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -20,7 +26,7 @@ import org.jsoup.select.Elements;
 
 class WebConnector {
 
-  private static final String SERVER_HOSTNAME = "https://api.skype.com";
+  private static final String SERVER_HOSTNAME = "http://api.skype.com";
   private final Skype skype;
   private final String username, password;
   private String skypeToken;
@@ -70,7 +76,7 @@ class WebConnector {
     String reponse = sendRequest(Method.GET, "/users/" + user.getUsername() + "/profile/public", "clientVersion", "0/7.12.0.101/").body();
     JSONObject userJSON = new JSONObject(reponse);
     userJSON.put("username", user.getUsername());
-    updateUser(userJSON);
+    updateUser(userJSON, false);
   }
 
   private void updateContacts() throws IOException {
@@ -80,7 +86,7 @@ class WebConnector {
 
     String selfResponse = sendRequest(Method.GET, "/users/self/profile").body();
     JSONObject selfJSON = new JSONObject(selfResponse);
-    updateUser(selfJSON);
+    updateUser(selfJSON, false);
 
     String response = sendRequest(Method.GET, "/users/self/contacts", "hideDetails", "true").body();
     JSONArray contactsArray = new JSONArray(response);
@@ -94,51 +100,84 @@ class WebConnector {
           continue;
         }
         contacts.add(contactSkypename);
+        skype.addContact(contactSkypename);
       } catch (JSONException e) {
         throw new ParseException(e);
       }
     }
 
-    // we need to know the actual array size
-    // so we can't do everything in one loop
-    // (some contacts may be blocked and their details won't be fetched)
-
-    String[] data = new String[contacts.size() * 2];
-    for (int i = 0; i < contacts.size(); i++) {
-      data[2 * i] = "contacts[]";
-      data[2 * i + 1] = contacts.get(i); // calling get repeteadly is okay because it's an arraylist
+    JSONObject data = new JSONObject();
+    JSONArray usernamesArray = new JSONArray();
+    for (String username : contacts) {
+      usernamesArray.put(username);
     }
-    String profilesResponse = sendRequest(Method.POST, "/users/self/contacts/profiles", data).body();
+    data.put("usernames", usernamesArray);
+    String profilesResponse = sendRequestJson(Method.POST, "/users/batch/profiles", data.toString());
     try {
       JSONArray profilesJSON = new JSONArray(profilesResponse);
       for (int i = 0; i < profilesJSON.length(); i++) {
-        User user = updateUser(profilesJSON.getJSONObject(i));
-        skype.addContact(user.getUsername());
+        updateUser(profilesJSON.getJSONObject(i), false);
       }
     } catch (JSONException e) {
       throw new ParseException(e);
     }
+
+    String filterString = contacts.stream().map(u -> "id eq '" + u + "'").collect(Collectors.joining(" or "));
+    profilesResponse =
+        sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + username + "/contacts?$filter=" + filterString, true).body();
+    try {
+      JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
+      for (int i = 0; i < profilesJSON.length(); i++) {
+        updateUser(profilesJSON.getJSONObject(i), true);
+      }
+    } catch (JSONException e) {
+      throw new ParseException(e);
+    }
+
   }
 
-  private User updateUser(JSONObject userJSON) throws ParseException {
-    String userUsername = userJSON.optString("username", null);
-    if (userUsername == null) {
-      throw new ParseException();
+  private void updateUser(JSONObject userJSON, boolean newContactType) throws ParseException {
+    String userUsername;
+    String userFirstName = null;
+    String userLastName = null;
+    String userMood = null;
+    String userCountry = null;
+    String userCity = null;
+    String userDisplayName = null;
+    try {
+      if (!newContactType) {
+        userUsername = userJSON.getString("username");
+        userFirstName = userJSON.optString("firstname", null);
+        userLastName = userJSON.optString("lastname", null);
+        userMood = userJSON.optString("mood", null);
+        userCountry = userJSON.optString("country", null);
+        userCity = userJSON.optString("city", null);
+        userDisplayName = userJSON.optString("displayname", null);
+      } else {
+        userUsername = userJSON.getString("id");
+        userDisplayName = userJSON.optString("display_name", null);
+        JSONObject nameJSON = userJSON.getJSONObject("name");
+        userFirstName = nameJSON.optString("first", null);
+        userLastName = nameJSON.optString("surname", null);
+        userMood = userJSON.optString("mood", null);
+        if (userJSON.has("locations")) {
+          JSONObject locationJSON = userJSON.optJSONArray("locations").optJSONObject(0);
+          if (locationJSON != null) {
+            userCountry = locationJSON.optString("country", null);
+            userCity = locationJSON.optString("city", null);
+          }
+        }
+      }
+    } catch (JSONException e) {
+      throw new ParseException(e);
     }
-    String userFirstName = userJSON.optString("firstname", null);
-    String userLastName = userJSON.optString("lastname", null);
-    String userMood = userJSON.optString("mood", null);
-    String userCountry = userJSON.optString("country", null);
-    String userCity = userJSON.optString("city", null);
-    String userDisplayName = userJSON.optString("displayname", null);
     User user = skype.getUser(userUsername);
-    user.setCity(userCity);
-    user.setCountry(userCountry);
-    user.setDisplayName(userDisplayName);
-    user.setFirstName(userFirstName);
-    user.setLastName(userLastName);
-    user.setMood(userMood);
-    return user;
+    user.setCity(getPlaintext(userCity));
+    user.setCountry(getPlaintext(userCountry));
+    user.setDisplayName(getPlaintext(userDisplayName));
+    user.setFirstName(getPlaintext(userFirstName));
+    user.setLastName(getPlaintext(userLastName));
+    user.setMood(getPlaintext(userMood));
   }
 
   private void generateTokens() throws IOException {
@@ -154,7 +193,15 @@ class WebConnector {
     String response = sendRequest(Method.POST, "/login/skypetoken", "scopes", "client", "clientVersion", "0/7.12.0.101/", "username", username,
         "passwordHash", base64hash).body();
     try {
-      skypeToken = new JSONObject(response).getString("skypetoken");
+      JSONObject jsonResponse = new JSONObject(response);
+      if (!jsonResponse.has("skypetoken")) {
+        if (jsonResponse.has("status") && jsonResponse.getJSONObject("status").has("text")) {
+          throw new IOException("Error while connecting to Skype: " + jsonResponse.getJSONObject("status").getString("text"));
+        } else {
+          throw new IOException("Unknown error while connecting to Skype: " + jsonResponse.toString());
+        }
+      }
+      skypeToken = jsonResponse.getString("skypetoken");
     } catch (JSONException e) {
       throw new ParseException(e);
     }
@@ -179,8 +226,9 @@ class WebConnector {
     }
   }
 
-  private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
-    Connection conn = Jsoup.connect(SERVER_HOSTNAME + apiPath).method(method).ignoreContentType(true).ignoreHttpErrors(true);
+  private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
+    Connection conn =
+        Jsoup.connect(absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath)).method(method).ignoreContentType(true).ignoreHttpErrors(true);
     if (skypeToken != null && session != null && sessionToken != null) {
       conn.header("X-Skypetoken", skypeToken);
       conn.cookie("skype-session", session);
@@ -189,4 +237,40 @@ class WebConnector {
     conn.data(keyval);
     return conn.execute();
   }
+
+  private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
+    return sendRequest(method, apiPath, false, keyval);
+  }
+
+  private String sendRequestJson(Method method, String apiPath, String content) throws IOException {
+    // can't use jsoup to post simple body because of issue https://github.com/jhy/jsoup/issues/627
+    // when https://github.com/jhy/jsoup/pull/734 is merged, replace this with jsoup code
+    HttpURLConnection conn = (HttpURLConnection) new URL(SERVER_HOSTNAME + apiPath).openConnection();
+    conn.setRequestMethod(method.toString());
+    if (skypeToken != null && session != null && sessionToken != null) {
+      conn.addRequestProperty("X-Skypetoken", skypeToken);
+      conn.addRequestProperty("Cookie", "skype-session=" + session + ";skype-session-token=" + sessionToken);
+    }
+    conn.addRequestProperty("Content-Type", "application/json");
+    conn.setDoOutput(true);
+    try (BufferedOutputStream bos = new BufferedOutputStream(conn.getOutputStream())) {
+      bos.write(content.getBytes(StandardCharsets.UTF_8));
+    }
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (BufferedInputStream bis = new BufferedInputStream(conn.getInputStream())) {
+      byte[] sink = new byte[1024];
+      int n;
+      while ((n = bis.read(sink)) != -1) {
+        baos.write(sink, 0, n);
+      }
+    }
+    return baos.toString(StandardCharsets.UTF_8.name());
+  }
+
+  private static String getPlaintext(String string) {
+    if (string == null)
+      return null;
+    return Jsoup.parseBodyFragment(string).text();
+  }
+
 }

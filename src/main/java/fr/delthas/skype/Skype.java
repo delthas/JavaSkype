@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A Skype interface to receive and send messages via a Skype account.
@@ -33,7 +35,7 @@ public final class Skype {
   private WebConnector webConnector;
 
   private Map<String, Group> groups;
-  private List<User> contacts;
+  private Set<User> contacts;
   private Map<String, User> users;
   private List<ContactRequest> contactRequests;
 
@@ -226,7 +228,7 @@ public final class Skype {
     notifConnector = new NotifConnector(this, username, password);
     webConnector = new WebConnector(this, username, password);
     groups = new HashMap<>();
-    contacts = new LinkedList<>();
+    contacts = new HashSet<>();
     users = new HashMap<>();
     contactRequests = new LinkedList<>();
     exceptionDuringConnection = null;

@@ -231,12 +231,17 @@ class NotifConnector {
             break;
           case "MSGR\\PUT":
             formatted = FormattedMessage.parseMessage(packet.body);
+            User user = (User) parseEntity(formatted.sender);
             String presenceString = getXMLField(formatted.body, "Status");
             if (presenceString == null) {
               // happens when a user switches from offline to "hidden"
               presenceString = "";
             }
-            ((User) parseEntity(formatted.sender)).setPresence(presenceString);
+            user.setPresence(presenceString);
+            String moodString = getXMLField(formatted.body, "Mood");
+            if (moodString != null) {
+              user.setMood(getPlaintext(moodString));
+            }
             break;
           case "MSGR\\THREAD":
             Document document = getDocument(packet.body);
