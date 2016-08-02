@@ -22,7 +22,7 @@ JavaSkype requires Java >= 8 to run. You can get this library using Maven by add
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.7</version>
+           <version>1.0.8</version>
     </dependency>
 </dependencies>
 ```
@@ -104,9 +104,6 @@ Run ```maven package```.
 
 ## Misceallenous
 
-### Version
-1.0.7
-
 ### Tech
 
 JavaSkype uses a very small set of libraries in order to run:
@@ -116,7 +113,6 @@ JavaSkype uses a very small set of libraries in order to run:
 * [JUnit](http://junit.org) - The famous testing library
 
 
-License
-----
+### License
 
 MIT

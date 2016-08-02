@@ -6,6 +6,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -22,12 +25,14 @@ import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Map;
 import java.util.Random;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 class UicConnector {
 
   private static final Random random = new Random();
@@ -57,6 +62,69 @@ class UicConnector {
       0xd70dd2ee, 0x4e048354, 0x3903b3c2, 0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc, 0x40df0b66, 0x37d83bf0, 0xa9bcae53,
       0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9, 0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693, 0x54de5729, 0x23d967bf, 0xb3667a2e,
       0xc4614ab8, 0x5d681b02, 0x2a6f2b94, 0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d};
+
+  static {
+
+    // ugly piece of code to bypass Oracle JRE stupid restriction on key lengths
+    // Skype requires a 256-bit key AES cipher, but Oracle will only allow a key length <= 128-bit due to US export laws
+
+    // the normal ways to fix this are:
+    // a) to stop using Oracle JRE
+    // b) to replace two files in the Oracle JRE folder (see http://stackoverflow.com/a/3864276)
+    // c) to use a simple 128-bit key instead of a 256-bit one
+    // d) to use an external Cipher implementation (like BouncyCastle)
+
+    // however, none of these ways are practical, or lightweight enough
+    // so we have to manually override the permissions on key lengths using reflection
+
+    // ugly reflection hack start (we have to override a private static final field from a package-private class...)
+
+    String errorString = "Failed manually overriding key-length permissions. "
+        + "Please open an issue at https://github.com/Delthas/JavaSkype/issues/ if you see this message. "
+        + "Try doing this to fix the problem: http://stackoverflow.com/a/3864276";
+
+    int newMaxKeyLength;
+    try {
+      if ((newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES")) < 256) {
+        Class c = Class.forName("javax.crypto.CryptoAllPermissionCollection");
+        Constructor con = c.getDeclaredConstructor();
+        con.setAccessible(true);
+        Object allPermissionCollection = con.newInstance();
+        Field f = c.getDeclaredField("all_allowed");
+        f.setAccessible(true);
+        f.setBoolean(allPermissionCollection, true);
+
+        c = Class.forName("javax.crypto.CryptoPermissions");
+        con = c.getDeclaredConstructor();
+        con.setAccessible(true);
+        Object allPermissions = con.newInstance();
+        f = c.getDeclaredField("perms");
+        f.setAccessible(true);
+        ((Map) f.get(allPermissions)).put("*", allPermissionCollection);
+
+        c = Class.forName("javax.crypto.JceSecurityManager");
+        f = c.getDeclaredField("defaultPolicy");
+        f.setAccessible(true);
+        Field mf = Field.class.getDeclaredField("modifiers");
+        mf.setAccessible(true);
+        mf.setInt(f, f.getModifiers() & ~Modifier.FINAL);
+        // override a final field
+        // this field won't be optimized out by the compiler because it is set at run-time
+        f.set(null, allPermissions);
+
+        newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES");
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(errorString, e);
+    }
+    if (newMaxKeyLength < 256) {
+      // hack failed
+      throw new RuntimeException(errorString);
+    }
+
+    // ugly reflection hack end
+
+  }
 
   @SuppressWarnings({"resource", "null"})
   public static String getUIC(String username, String password, String nonce) throws IOException, GeneralSecurityException {
