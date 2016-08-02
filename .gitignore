@@ -3,9 +3,6 @@
 *.class
 hs_err_pid*
 *.jar
-# but not our repo files
-!repo/*
-
 
 # maven files
 
@@ -33,8 +30,3 @@ local.properties
 *.launch
 .classpath
 .target
-
-# javaskype specific files
-
-skylogin/openssl/
-skylogin/skylogin/src/*.o

@@ -112,6 +112,11 @@ JavaSkype uses a very small set of libraries in order to run:
 * [JSoup](https://jsoup.org) - A lightweight and powerful library to parse HTML documents
 * [JUnit](http://junit.org) - The famous testing library
 
+Several libraries have been used during the making of this library:
+
+* [skylogin](https://github.com/msndevs/skylogin) - I originally used this library via JNI but I've rewritten it in Java in UicConnector.java
+* [pyskype](https://github.com/uunicorn/pyskype) - I've used this library to understand how to make a MSNP24 client
+* [msndevs-wiki](https://github.com/msndevs/protocol-docs/wiki) - This wiki has helped me understand the MSNP24 protocol
 
 ### License
 
