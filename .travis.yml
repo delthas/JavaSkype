@@ -4,3 +4,4 @@ jdk:
 notifications:
   email: false
 script: mvn test
+install: true
