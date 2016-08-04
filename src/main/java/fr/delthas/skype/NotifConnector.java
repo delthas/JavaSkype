@@ -55,7 +55,7 @@ class NotifConnector {
   private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+|\\d+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
   private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.\\-]+):(\\d+)");
-  private static final long pingInterval = 30 * 1000000000L; // seconds
+  private static final long pingInterval = 2 * 60000000000L; // minutes
   private long lastMessageSentTime;
   private Thread pingThread;
   private final DocumentBuilder documentBuilder;
@@ -426,6 +426,7 @@ class NotifConnector {
         if (System.nanoTime() - lastMessageSentTime > pingInterval) {
           try {
             sendPacket("PNG", "CON", "");
+            sendPacket("PUT", "MSGR\\ACTIVEENDPOINT", "<activeendpoint><timeout>135</timeout></activeendpoint>");
           } catch (IOException e) {
             skype.error(e);
             break;
