@@ -101,8 +101,7 @@ class NotifConnector {
           switch (mainNode) {
             case "recentconversations-response":
               NodeList conversationNodes = doc.getElementsByTagName("conversation");
-              StringBuilder sb = new StringBuilder("<threads>");
-              boolean threads = false;
+              List<String> threadIds = new ArrayList<>();
               outer: for (int i = 0; i < conversationNodes.getLength(); i++) {
                 Node conversation = conversationNodes.item(i);
                 String id = null;
@@ -135,13 +134,23 @@ class NotifConnector {
                   continue outer;
                 }
                 Group group = (Group) parseEntity(id);
-                sb.append("<thread><id>19:").append(group.getId()).append("@thread.skype</id></thread>");
-                threads = true;
+                threadIds.add(group.getId());
               }
-              if (threads) {
-                String body = sb.append("</threads>").toString();
+              if (!threadIds.isEmpty()) {
                 logger.finest("Fetching threads information");
+                StringBuilder sb = new StringBuilder("<threads>");
+                for (String threadId : threadIds) {
+                  if (sb.length() > 30000) {
+                    String body = sb.append("</threads>").toString();
+                    sendPacket("GET", "MSGR\\THREADS", body);
+                    sb.delete(0, sb.length());
+                    sb.append("<threads>");
+                  }
+                  sb.append("<thread><id>19:").append(threadId).append("@thread.skype</id></thread>");
+                }
+                String body = sb.append("</threads>").toString();
                 sendPacket("GET", "MSGR\\THREADS", body);
+                sendPacket("PNG", "CON", "");
               } else {
                 logger.finer("No threads received in recentconversations-response");
                 logger.fine("Connected! Stopped blocking.");
@@ -153,9 +162,6 @@ class NotifConnector {
               for (int i = 0; i < threadNodes.getLength(); i++) {
                 updateThread(threadNodes.item(i));
               }
-              logger.finest("Received threads-response.");
-              logger.fine("Connected! Stopped blocking.");
-              connectLatch.countDown(); // stop blocking: we're connected
               break;
             default:
           }
@@ -317,16 +323,24 @@ class NotifConnector {
         sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
         sendPacket("PUT", "MSGR\\SUBSCRIPTIONS",
             "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>");
-        List<User> contacts = skype.getContacts();
         StringBuilder contactsStringBuilder = new StringBuilder("<ml l=\"1\"><skp>");
-        for (User contact : contacts) {
-          contactsStringBuilder.append("<c n=\"");
-          contactsStringBuilder.append(contact.getUsername());
-          contactsStringBuilder.append("\" t=\"8\"><s l=\"3\" n=\"IM\"/><s l=\"3\" n=\"SKP\"/></c>");
+        if (!skype.getContacts().isEmpty()) {
+          for (User contact : skype.getContacts()) {
+            if (contactsStringBuilder.length() > 30000) {
+              contactsStringBuilder.append("</skp></ml>");
+              String contactsString = contactsStringBuilder.toString();
+              sendPacket("PUT", "MSGR\\CONTACTS", contactsString);
+              contactsStringBuilder.delete(0, contactsStringBuilder.length());
+              contactsStringBuilder.append("<ml l=\"1\"><skp>");
+            }
+            contactsStringBuilder.append("<c n=\"");
+            contactsStringBuilder.append(contact.getUsername());
+            contactsStringBuilder.append("\" t=\"8\"><s l=\"3\" n=\"IM\"/><s l=\"3\" n=\"SKP\"/></c>");
+          }
+          contactsStringBuilder.append("</skp></ml>");
+          String contactsString = contactsStringBuilder.toString();
+          sendPacket("PUT", "MSGR\\CONTACTS", contactsString);
         }
-        contactsStringBuilder.append("</skp></ml>");
-        String contactsString = contactsStringBuilder.toString();
-        sendPacket("PUT", "MSGR\\CONTACTS", contactsString);
         sendPacket("GET", "MSGR\\RECENTCONVERSATIONS", "<recentconversations><start>0</start><pagesize>100</pagesize></recentconversations>");
         break;
       case "OUT":
@@ -337,11 +351,16 @@ class NotifConnector {
       case "PUT":
         break;
       case "PNG":
-        // ignore pong
+        if (connectLatch.getCount() > 0L) {
+          logger.finest("Received first pong");
+          logger.fine("Connected! Stopped blocking.");
+          connectLatch.countDown(); // stop blocking: we're connected
+        }
         break;
       default:
         System.out.println("Received unknown message: " + packet);
     }
+
   }
 
   private Packet readPacket() throws IOException {
@@ -402,7 +421,7 @@ class NotifConnector {
     String payload = new String(payloadRaw, StandardCharsets.UTF_8);
 
     if (command.matches("\\d+")) {
-      ParseException e = new ParseException("Error message received:\n" + new Packet(command, parameters, payload).toString());
+      ParseException e = new ParseException("Error message received:\n" + firstLine + "\n" + payload);
       logger.log(Level.SEVERE, "", e);
       throw e;
     }

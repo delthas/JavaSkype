@@ -162,9 +162,9 @@ class UicConnector {
         dis.readFully(response);
         if (Arrays.equals(magicResponse, response)) {
           dis.readFully(response, 0, 2);
-          logger.fine("Wrong magic received from server during handshake");
           break;
         }
+        logger.fine("Wrong magic received from server during handshake");
         socket.close();
         socket = null;
       } catch (IOException ex) {
