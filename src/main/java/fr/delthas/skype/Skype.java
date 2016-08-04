@@ -1,6 +1,7 @@
 package fr.delthas.skype;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -9,6 +10,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.FileHandler;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
+import java.util.stream.Collectors;
 
 /**
  * A Skype interface to receive and send messages via a Skype account.
@@ -18,9 +25,13 @@ import java.util.Set;
  * <p>
  * <b>Note:</b> All strings passed to user/group/skype objects will have their control characters removed (0x00-0x1F and 0x7F-0x9F) except for CR and
  * LF which will be replaced with CRLF if needed.
+ * <p>
+ * <b>If you want to report a bug, please enable debug/logs with {@link Skype#setDebug(Path)}, before using {@link #connect()}.</b>
  *
  */
 public final class Skype {
+
+  private static final Logger logger = Logger.getLogger("fr.delthas.skype");
 
   private final String username;
   private final String password;
@@ -42,6 +53,14 @@ public final class Skype {
   private boolean connected = false;
   private boolean connecting = false;
   private IOException exceptionDuringConnection;
+
+  static {
+    try {
+      setDebug(null);
+    } catch (IOException e) {
+      // will not throw
+    }
+  }
 
   // --- Public API (except listeners add/remove methods) --- //
 
@@ -87,6 +106,8 @@ public final class Skype {
     connected = true;
     connecting = true;
 
+    logger.fine("Connecting to Skype");
+
     reset();
     // notifConnector depends on webConnector information so load webConnector first
     webConnector.start();
@@ -114,6 +135,8 @@ public final class Skype {
       return;
     }
     connected = false;
+
+    logger.fine("Disconnecting from Skype");
 
     notifConnector.disconnect();
     for (Map.Entry<String, User> user : users.entrySet()) {
@@ -170,6 +193,7 @@ public final class Skype {
     }
     ensureConnected();
     try {
+      logger.finer("Changing presence to " + presence);
       notifConnector.changePresence(presence);
     } catch (IOException e) {
       error(e);
@@ -181,6 +205,31 @@ public final class Skype {
    */
   public boolean isConnected() {
     return connected;
+  }
+
+  /**
+   * Enables or disables debug of the Skype library (globally). (By default logs are <b>disabled</b>.)
+   * <p>
+   * If enabled, debug information and logs will be written to a log file at the specified path. If the path is null, the debug will be disabled.
+   * 
+   * @param path The path at which to write debugging information, or null to disable logging.
+   * 
+   * @throws IOException may be thrown when adding a file handler to the logger
+   */
+  public static void setDebug(Path path) throws IOException {
+    if (path == null) {
+      logger.setLevel(Level.OFF);
+    } else {
+      logger.setLevel(Level.ALL);
+      logger.setUseParentHandlers(false);
+      for (Handler handler : logger.getHandlers()) {
+        logger.removeHandler(handler);
+        handler.close();
+      }
+      FileHandler fh = new FileHandler(path.toString(), false);
+      fh.setFormatter(new SimpleFormatter());
+      logger.addHandler(fh);
+    }
   }
 
   // --- Package-private methods --- //
@@ -204,12 +253,16 @@ public final class Skype {
   }
 
   void addContact(String username) {
+    logger.finest("Adding contact " + username);
     contacts.add(getUser(username));
   }
 
   void error(IOException e) {
+    logger.log(Level.SEVERE, "Error thrown", e);
     if (errorListener != null) {
       errorListener.error(e);
+    } else {
+      logger.severe("No error listener set!!!");
     }
     if (connecting) {
       exceptionDuringConnection = e;
@@ -225,6 +278,7 @@ public final class Skype {
   }
 
   private void reset() {
+    logger.finest("Resetting the Skype object");
     notifConnector = new NotifConnector(this, username, password);
     webConnector = new WebConnector(this, username, password);
     groups = new HashMap<>();
@@ -239,6 +293,7 @@ public final class Skype {
   void block(User user) {
     ensureConnected();
     try {
+      logger.finer("Blocking user: " + user);
       webConnector.block(user);
     } catch (IOException e) {
       error(e);
@@ -248,6 +303,7 @@ public final class Skype {
   void unblock(User user) {
     ensureConnected();
     try {
+      logger.finer("Unblocking user: " + user);
       webConnector.unblock(user);
     } catch (IOException e) {
       error(e);
@@ -257,6 +313,7 @@ public final class Skype {
   void sendContactRequest(User user, String greeting) {
     ensureConnected();
     try {
+      logger.finer("Sending user: " + user + " a contact request: greeting:" + greeting);
       webConnector.sendContactRequest(user, greeting);
     } catch (IOException e) {
       error(e);
@@ -266,6 +323,7 @@ public final class Skype {
   void removeFromContacts(User user) {
     ensureConnected();
     try {
+      logger.finer("Removing user: " + user + " from contacts");
       webConnector.removeFromContacts(user);
       contacts.remove(user);
     } catch (IOException e) {
@@ -286,6 +344,7 @@ public final class Skype {
   void updateUser(User user) {
     if (!users.containsKey(user.getUsername())) {
       try {
+        logger.finest("Updating user info: " + user);
         webConnector.updateUser(user);
       } catch (IOException e) {
         error(e);
@@ -296,6 +355,7 @@ public final class Skype {
   void acceptContactRequest(ContactRequest contactRequest) {
     ensureConnected();
     try {
+      logger.finer("Accepting contact request: " + contactRequest);
       webConnector.acceptContactRequest(contactRequest);
       contactRequests.remove(contactRequest);
     } catch (IOException e) {
@@ -306,6 +366,7 @@ public final class Skype {
   void declineContactRequest(ContactRequest contactRequest) {
     ensureConnected();
     try {
+      logger.finer("Declining contact request: " + contactRequest);
       webConnector.declineContactRequest(contactRequest);
       contactRequests.remove(contactRequest);
     } catch (IOException e) {
@@ -318,6 +379,7 @@ public final class Skype {
   void sendUserMessage(User user, String message) {
     ensureConnected();
     try {
+      logger.finer("Sending user: " + user + " message: " + message);
       notifConnector.sendUserMessage(user, message);
     } catch (IOException e) {
       error(e);
@@ -327,6 +389,7 @@ public final class Skype {
   void sendGroupMessage(Group group, String message) {
     ensureConnected();
     try {
+      logger.finer("Sending group: " + group + " message: " + message);
       notifConnector.sendGroupMessage(group, message);
     } catch (IOException e) {
       error(e);
@@ -336,6 +399,7 @@ public final class Skype {
   void addUserToGroup(User user, Role role, Group group) {
     ensureConnected();
     try {
+      logger.finer("Adding user: " + user + " to group: " + group + " with role: " + role);
       notifConnector.addUserToGroup(user, role, group);
     } catch (IOException e) {
       error(e);
@@ -345,6 +409,7 @@ public final class Skype {
   void removeUserFromGroup(User user, Group group) {
     ensureConnected();
     try {
+      logger.finer("Removing user: " + user + " from group: " + group);
       notifConnector.removeUserFromGroup(user, group);
     } catch (IOException e) {
       error(e);
@@ -354,6 +419,7 @@ public final class Skype {
   void changeUserRole(User user, Role role, Group group) {
     ensureConnected();
     try {
+      logger.finer("Changing user: " + user + " from group: " + group + " role to: " + role);
       notifConnector.changeUserRole(user, role, group);
     } catch (IOException e) {
       error(e);
@@ -363,6 +429,7 @@ public final class Skype {
   void changeGroupTopic(Group group, String topic) {
     ensureConnected();
     try {
+      logger.finer("Setting group: " + group + " topic to: " + topic);
       notifConnector.changeGroupTopic(group, topic);
     } catch (IOException e) {
       error(e);
@@ -373,42 +440,50 @@ public final class Skype {
 
   void userMessageReceived(User sender, String message) {
     updateUser(sender);
+    logger.finer("Received message: " + message + " from user: " + sender);
     for (UserMessageListener listener : userMessageListeners) {
       listener.messageReceived(sender, message);
     }
   }
 
   void groupMessageReceived(Group group, User sender, String message) {
+    logger.finer("Received group message: " + message + " from user: " + sender + " in group: " + group);
     for (GroupMessageListener listener : groupMessageListeners) {
       listener.messageReceived(group, sender, message);
     }
   }
 
   void userPresenceChanged(User user, Presence oldPresence, Presence presence) {
+    logger.finer("User: " + user + " changed presence from: " + oldPresence + " to: " + presence);
     for (UserPresenceListener listener : userPresenceListeners) {
       listener.presenceChanged(user, oldPresence, presence);
     }
   }
 
   void usersAddedToGroup(List<User> users, Group group) {
+    logger.finer("Users: " + users.stream().map(User::getUsername).collect(Collectors.joining(", ")) + " added to group: " + group);
     for (GroupPropertiesListener listener : groupPropertiesListeners) {
       listener.usersAdded(group, users);
     }
   }
 
   void usersRemovedFromGroup(List<User> users, Group group) {
+    logger.finer("Users: " + users.stream().map(User::getUsername).collect(Collectors.joining(", ")) + " removed from group: " + group);
     for (GroupPropertiesListener listener : groupPropertiesListeners) {
       listener.usersRemoved(group, users);
     }
   }
 
   void usersRolesChanged(Group group, List<Pair<User, Role>> newRoles) {
+    logger.finer(
+        "User roles changed: " + newRoles.stream().map(p -> p.getFirst().getUsername() + ":" + p.getSecond()).collect(Collectors.joining(", ")));
     for (GroupPropertiesListener listener : groupPropertiesListeners) {
       listener.usersRolesChanged(group, newRoles);
     }
   }
 
   void groupTopicChanged(Group group, String topic) {
+    logger.finer("Group: " + group + " topic changed to: " + topic);
     for (GroupPropertiesListener listener : groupPropertiesListeners) {
       listener.topicChanged(group, topic);
     }

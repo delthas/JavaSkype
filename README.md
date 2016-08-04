@@ -22,7 +22,7 @@ JavaSkype requires Java >= 8 to run. You can get this library using Maven by add
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.11</version>
+           <version>1.0.12</version>
     </dependency>
 </dependencies>
 ```
@@ -34,6 +34,8 @@ This library is Object-oriented: the main Skype object will give you User and Gr
 ```java
 Skype skype = new Skype("myusername", "mypassword");
 try {
+  // If you want to report a bug, enable logging
+  // Skype.setDebug(path);
   skype.connect(); // Will block until we're connected
 } catch (IOException e) {
   System.err.println("An error occured while connecting...");

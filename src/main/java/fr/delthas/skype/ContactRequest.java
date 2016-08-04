@@ -85,4 +85,9 @@ public class ContactRequest {
     return true;
   }
 
+  @Override
+  public String toString() {
+    return "Contact Request: User: " + username + " Greeting: " + greeting;
+  }
+
 }

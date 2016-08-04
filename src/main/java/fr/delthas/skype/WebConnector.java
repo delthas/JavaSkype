@@ -5,6 +5,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -18,6 +20,7 @@ import org.jsoup.select.Elements;
 
 class WebConnector {
 
+  private static final Logger logger = Logger.getLogger("fr.delthas.skype.web");
   private static final String SERVER_HOSTNAME = "http://api.skype.com";
   private final Skype skype;
   private final String username, password;
@@ -32,6 +35,7 @@ class WebConnector {
   }
 
   public void start() throws IOException {
+    logger.finer("Starting web connector");
     generateTokens();
     updateContacts();
   }
@@ -146,20 +150,27 @@ class WebConnector {
     }
     byte[] md5hash = md.digest(String.format("%s\nskyper\n%s", username, password).getBytes(StandardCharsets.UTF_8));
     String base64hash = Base64.getEncoder().encodeToString(md5hash);
+    logger.finest("Getting skype token");
     String response = sendRequest(Method.POST, "/login/skypetoken", "scopes", "client", "clientVersion", "0/7.12.0.101/", "username", username,
         "passwordHash", base64hash).body();
     try {
       JSONObject jsonResponse = new JSONObject(response);
       if (!jsonResponse.has("skypetoken")) {
         if (jsonResponse.has("status") && jsonResponse.getJSONObject("status").has("text")) {
-          throw new IOException("Error while connecting to Skype: " + jsonResponse.getJSONObject("status").getString("text"));
+          IOException e = new IOException("Error while connecting to Skype: " + jsonResponse.getJSONObject("status").getString("text"));
+          logger.log(Level.SEVERE, "", e);
+          throw e;
         } else {
-          throw new IOException("Unknown error while connecting to Skype: " + jsonResponse.toString());
+          IOException e = new IOException("Unknown error while connecting to Skype: " + jsonResponse.toString());
+          logger.log(Level.SEVERE, "", e);
+          throw e;
         }
       }
       skypeToken = jsonResponse.getString("skypetoken");
-    } catch (JSONException e) {
-      throw new ParseException(e);
+    } catch (JSONException e_) {
+      ParseException e = new ParseException("Error while parsing skypetoken response: " + response, e_);
+      logger.log(Level.SEVERE, "", e);
+      throw e;
     }
 
     Document doc = Jsoup.connect("https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com%2F").timeout(10000).get();
@@ -167,7 +178,9 @@ class WebConnector {
     Elements pieElements = doc.select("#pie");
     Elements etmElements = doc.select("#etm");
     if (pieElements.isEmpty() || etmElements.isEmpty()) {
-      throw new ParseException();
+      ParseException e = new ParseException("No pie or etm in login.skype.com response: " + doc.outerHtml());
+      logger.log(Level.SEVERE, "", e);
+      throw e;
     }
 
     String pie = pieElements.get(0).val();
@@ -178,17 +191,22 @@ class WebConnector {
     session = r.cookie("skype-session");
     sessionToken = r.cookie("skype-session-token");
     if (session == null || sessionToken == null) {
-      throw new ParseException("Error while getting skype token: " + r.body());
+      ParseException e = new ParseException("Error while getting session token: " + r.body());
+      logger.log(Level.SEVERE, "", e);
+      throw e;
     }
   }
 
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
-    Connection conn = Jsoup.connect(absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath)).timeout(10000).method(method).ignoreContentType(true)
-        .ignoreHttpErrors(true);
+    String url = absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath);
+    Connection conn = Jsoup.connect(url).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
+    logger.finest("Sending " + method + " request at " + url);
     if (skypeToken != null && session != null && sessionToken != null) {
       conn.header("X-Skypetoken", skypeToken);
       conn.cookie("skype-session", session);
       conn.cookie("skype-session-token", sessionToken);
+    } else {
+      logger.fine("No token sent for the request at: " + url);
     }
     conn.data(keyval);
     return conn.execute();

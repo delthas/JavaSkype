@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -35,6 +37,7 @@ import javax.crypto.spec.SecretKeySpec;
 @SuppressWarnings({"unchecked", "rawtypes"})
 class UicConnector {
 
+  private static final Logger logger = Logger.getLogger("fr.delthas.skype.uic");
   private static final Random random = new Random();
   private static final String[] servers = {"91.190.216.17", "91.190.218.40"};
   private static final int port = 33033;
@@ -83,9 +86,12 @@ class UicConnector {
         + "Please open an issue at https://github.com/Delthas/JavaSkype/issues/ if you see this message. "
         + "Try doing this to fix the problem: http://stackoverflow.com/a/3864276";
 
+    logger.finest("Initializing UIC generation");
+
     int newMaxKeyLength;
     try {
       if ((newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES")) < 256) {
+        logger.finer("Overriding AES key length because of limitation");
         Class c = Class.forName("javax.crypto.CryptoAllPermissionCollection");
         Constructor con = c.getDeclaredConstructor();
         con.setAccessible(true);
@@ -113,12 +119,16 @@ class UicConnector {
         f.set(null, allPermissions);
 
         newMaxKeyLength = Cipher.getMaxAllowedKeyLength("AES");
+      } else {
+        logger.finest("Not overriding AES key length");
       }
     } catch (Exception e) {
+      logger.log(Level.SEVERE, "Error when overriding AES key length", e);
       throw new RuntimeException(errorString, e);
     }
     if (newMaxKeyLength < 256) {
       // hack failed
+      logger.severe("Failed overriding AES key length");
       throw new RuntimeException(errorString);
     }
 
@@ -128,6 +138,7 @@ class UicConnector {
 
   @SuppressWarnings({"resource", "null"})
   public static String getUIC(String username, String password, String nonce) throws IOException, GeneralSecurityException {
+    logger.finest("Computing UIC token with username: " + username + " and nonce: " + nonce);
     byte[] sessionKey = new byte[0xC0];
     random.nextBytes(sessionKey);
     sessionKey[0] = 1;
@@ -151,16 +162,19 @@ class UicConnector {
         dis.readFully(response);
         if (Arrays.equals(magicResponse, response)) {
           dis.readFully(response, 0, 2);
+          logger.fine("Wrong magic received from server during handshake");
           break;
         }
         socket.close();
         socket = null;
       } catch (IOException ex) {
-        // ignore error
+        // just log the error
+        logger.log(Level.FINE, "Failed connecting to server " + server + " for handshake", ex);
       }
     }
 
     if (socket == null) {
+      logger.severe("No server responded (correctly) to handshake");
       return null;
     }
 
@@ -300,10 +314,13 @@ class UicConnector {
 
     dos.flush();
 
+    logger.finest("Sent UIC payload to server");
+
     byte[] response = new byte[3];
     dis.readFully(response);
     if (!Arrays.equals(magicResponse, response)) {
       socket.close();
+      logger.severe("Wrong magic received from server after payload");
       return null;
     }
 
@@ -329,6 +346,7 @@ class UicConnector {
           case 0x00:
             int value = readValue(decrypted, position);
             if (id == 0x01 && value != 4200) {
+              logger.severe("Received LOGIN_CODE != LOGIN_OK: received code " + value);
               break outer;
             }
             break;
@@ -350,6 +368,7 @@ class UicConnector {
     socket.close();
 
     if (signedCredentials == null) {
+      logger.severe("No credentials received after payload");
       return null;
     }
 
@@ -395,6 +414,8 @@ class UicConnector {
     rsaCipher.doFinal(challengeSigned, 0, challengeSigned.length, challengeEncrypted, 4 + signedCredentials.length);
 
     String uic = new String(Base64.getEncoder().encode(challengeEncrypted), StandardCharsets.UTF_8);
+
+    logger.finest("Computed UIC succesfully (uic length:" + uic.length() + ")");
 
     return uic;
   }
