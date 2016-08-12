@@ -21,7 +21,7 @@ import org.jsoup.select.Elements;
 class WebConnector {
 
   private static final Logger logger = Logger.getLogger("fr.delthas.skype.web");
-  private static final String SERVER_HOSTNAME = "http://api.skype.com";
+  private static final String SERVER_HOSTNAME = "https://api.skype.com";
   private final Skype skype;
   private final String username, password;
   private String skypeToken;
