@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.delthas</groupId>
 	<artifactId>javaskype</artifactId>
-	<version>1.0.14</version>
+	<version>1.0.14.1-SNAPSHOT</version>
 
 	<name>JavaSkype</name>
 	<url>https://github.com/delthas/javaskype</url>
@@ -67,6 +67,12 @@
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.12</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.4</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

@@ -1,10 +1,19 @@
 package fr.delthas.skype;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
+import fr.delthas.skype.MessageListener.MessageEventType;
+import fr.delthas.skype.message.*;
+import org.jsoup.Jsoup;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import javax.net.ssl.SSLSocketFactory;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -18,17 +27,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.net.ssl.SSLSocketFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
-import org.jsoup.Jsoup;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
+import static fr.delthas.skype.Constants.HEADER_RICH_TEXT;
+import static fr.delthas.skype.Constants.HEADER_TEXT;
 
 class NotifConnector {
 
@@ -183,56 +183,103 @@ class NotifConnector {
           }
           Object sender = parseEntity(formatted.sender);
           Object receiver = parseEntity(formatted.receiver);
-          switch (messageType) {
-            case "Text":
-            case "RichText":
-              if (!(sender instanceof User)) {
-                logger.fine("Received " + messageType + " message sent from " + sender + " which isn't a user");
+          if (messageType.startsWith(HEADER_RICH_TEXT) || messageType.startsWith(HEADER_TEXT)) {
+            // work with messages
+            if (!(sender instanceof User)) {
+              logger.fine("Received " + messageType + " message sent from " + sender + " which isn't a user");
+              break;
+            }
+            boolean isRemoved = false;
+
+            String isMe = formatted.headers.get("Skype-EmoteOffset");
+            String messageId = formatted.headers.get("Client-Message-ID");
+            String editId = formatted.headers.get("Skype-EditedId");
+            String html = formatted.body;
+            if (isMe != null) {
+              html = formatted.body.substring(Integer.parseInt(isMe));
+            }
+            if (editId != null) {
+              html = html.replaceAll("<e_m.*t=\".*\"\\/>", "");
+              isRemoved = html.isEmpty();
+            }
+            String id = messageId != null ? messageId : editId;
+            Message message = null;
+            MessageType type = MessageType.getTypeByHeaderType((messageType));
+            if (type == null) {
+              break;
+            }
+            switch (type) {
+              case TEXT:
+                message = new TextMessage(id, html, isMe != null);
                 break;
-              }
-              if (receiver instanceof Group) {
-                skype.groupMessageReceived((Group) receiver, (User) sender, getPlaintext(formatted.body));
-              } else {
-                skype.userMessageReceived((User) sender, getPlaintext(formatted.body));
-              }
-              break;
-            case "ThreadActivity/AddMember":
-              List<String> usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
-              break;
-            case "ThreadActivity/DeleteMember":
-              usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
-              break;
-            case "ThreadActivity/TopicUpdate":
-              skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
-              break;
-            case "ThreadActivity/RoleUpdate":
-              Document doc = getDocument(formatted.body);
-              NodeList targetNodes = doc.getElementsByTagName("target");
-              List<Pair<User, Role>> roles = new ArrayList<>(targetNodes.getLength());
-              for (int i = 0; i < targetNodes.getLength(); i++) {
-                Node targetNode = targetNodes.item(i);
-                User user = null;
-                Role role = null;
-                for (int j = 0; j < targetNode.getChildNodes().getLength(); j++) {
-                  Node targetPropertyNode = targetNode.getChildNodes().item(j);
-                  if (targetPropertyNode.getNodeName().equals("id")) {
-                    user = (User) parseEntity(targetPropertyNode.getTextContent());
-                    skype.updateUser(user);
-                  } else if (targetPropertyNode.getNodeName().equals("role")) {
-                    role = Role.getRole(targetPropertyNode.getTextContent());
+              case PICTURE:
+                message = new PictureMessage(id, html);
+                break;
+              case FILE:
+                message = new FileMessage(id, html);
+                break;
+              case VIDEO:
+                message = new VideoMessage(id, html);
+                break;
+              case CONTACT:
+                message = new ContactMessage(id, html);
+                break;
+              case MOJI:
+                message = new MojiMessage(id, html);
+                break;
+              case UNKNOWN:
+                message = new UnknownMessage(id, html);
+                break;
+              default:
+                break;
+            }
+            MessageEventType eventType = editId == null ? MessageEventType.RECEIVED : isRemoved ? MessageEventType.REMOVED : MessageEventType.EDITED;
+            if (receiver instanceof Group) {
+              skype.doGroupMessageEvent(eventType, (Group) receiver, (User) sender, message);
+            } else {
+              skype.doUserMessageEvent(eventType, (User) sender, message);
+            }
+          } else {
+            switch (messageType) {
+              case "ThreadActivity/AddMember":
+                List<String> usernames = getXMLFields(formatted.body, "target");
+                skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+                break;
+              case "ThreadActivity/DeleteMember":
+                usernames = getXMLFields(formatted.body, "target");
+                skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+                break;
+              case "ThreadActivity/TopicUpdate":
+                skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
+                break;
+              case "ThreadActivity/RoleUpdate":
+                Document doc = getDocument(formatted.body);
+                NodeList targetNodes = doc.getElementsByTagName("target");
+                List<Pair<User, Role>> roles = new ArrayList<>(targetNodes.getLength());
+                for (int i = 0; i < targetNodes.getLength(); i++) {
+                  Node targetNode = targetNodes.item(i);
+                  User user = null;
+                  Role role = null;
+                  for (int j = 0; j < targetNode.getChildNodes().getLength(); j++) {
+                    Node targetPropertyNode = targetNode.getChildNodes().item(j);
+                    if (targetPropertyNode.getNodeName().equals("id")) {
+                      user = (User) parseEntity(targetPropertyNode.getTextContent());
+                      skype.updateUser(user);
+                    } else if (targetPropertyNode.getNodeName().equals("role")) {
+                      role = Role.getRole(targetPropertyNode.getTextContent());
+                    }
+                  }
+                  if (user != null && role != null) {
+                    roles.add(new Pair<>(user, role));
                   }
                 }
-                if (user != null && role != null) {
-                  roles.add(new Pair<>(user, role));
-                }
-              }
-              skype.usersRolesChanged((Group) sender, roles);
-              break;
-            default:
-              break;
+                skype.usersRolesChanged((Group) sender, roles);
+                break;
+              default:
+                break;
+            }
           }
+
         }
         break;
       case "NFY":

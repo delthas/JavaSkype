@@ -1,5 +1,8 @@
 package fr.delthas.skype;
 
+import fr.delthas.skype.MessageListener.MessageEventType;
+import fr.delthas.skype.message.Message;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -27,7 +30,6 @@ import java.util.stream.Collectors;
  * LF which will be replaced with CRLF if needed.
  * <p>
  * <b>If you want to report a bug, please enable debug/logs with {@link Skype#setDebug(Path)}, before using {@link #connect()}.</b>
- *
  */
 public final class Skype {
 
@@ -78,9 +80,8 @@ public final class Skype {
   /**
    * Calls {@code connect(Presence.CONNECTED)}.
    *
-   * @throws IOException If an error is thrown while connecting.
+   * @throws IOException          If an error is thrown while connecting.
    * @throws InterruptedException If the connection is interrupted.
-   *
    * @see #connect(Presence)
    */
   public void connect() throws IOException, InterruptedException {
@@ -92,8 +93,7 @@ public final class Skype {
    * Connects the Skype interface. Will block until connected.
    *
    * @param presence The initial presence of the Skype account after connection. Cannot be {@link Presence#OFFLINE}.
-   *
-   * @throws IOException If an error is thrown while connecting.
+   * @throws IOException          If an error is thrown while connecting.
    * @throws InterruptedException If the connection is interrupted.
    */
   public void connect(Presence presence) throws IOException, InterruptedException {
@@ -438,6 +438,7 @@ public final class Skype {
 
   // --- Listeners call methods --- //
 
+  @Deprecated
   void userMessageReceived(User sender, String message) {
     updateUser(sender);
     logger.finer("Received message: " + message + " from user: " + sender);
@@ -446,10 +447,45 @@ public final class Skype {
     }
   }
 
+  <T extends Message> void doUserMessageEvent(MessageEventType event, User sender, T message) {
+    logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender);
+    for (UserMessageListener listener : userMessageListeners) {
+      switch (event) {
+        case RECEIVED:
+          listener.messageReceived(sender, message);
+          break;
+        case EDITED:
+          listener.messageEdited(sender, message);
+          break;
+        case REMOVED:
+          listener.messageRemoved(sender, message);
+          break;
+      }
+    }
+  }
+
+  @Deprecated
   void groupMessageReceived(Group group, User sender, String message) {
     logger.finer("Received group message: " + message + " from user: " + sender + " in group: " + group);
     for (GroupMessageListener listener : groupMessageListeners) {
       listener.messageReceived(group, sender, message);
+    }
+  }
+
+  <T extends Message> void doGroupMessageEvent(MessageEventType event, Group group, User sender, T message) {
+    logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender + " in group: " + group);
+    for (GroupMessageListener listener : groupMessageListeners) {
+      switch (event) {
+        case RECEIVED:
+          listener.messageReceived(group, sender, message);
+          break;
+        case EDITED:
+          listener.messageEdited(group, sender, message);
+          break;
+        case REMOVED:
+          listener.messageRemoved(group, sender, message);
+          break;
+      }
     }
   }
 
