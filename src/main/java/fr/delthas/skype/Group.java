@@ -1,5 +1,7 @@
 package fr.delthas.skype;
 
+import fr.delthas.skype.message.Message;
+
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -12,7 +14,7 @@ import java.util.stream.Collectors;
  * All information will be updated as updates are received (this object <b>is NOT</b> an immutable view/snapshot of a group).
  *
  */
-public class Group {
+public class Group implements Chat{
 
   private final Skype skype;
   private final String id;
@@ -31,14 +33,27 @@ public class Group {
    *
    * @param message The message to send.
    */
+  @Deprecated
   public void sendMessage(String message) {
     skype.sendGroupMessage(this, message);
+  }
+
+  public void sendMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.SEND);
+  }
+
+  public void editMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.EDIT);
+  }
+
+  public void removeMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.REMOVE);
   }
 
   /**
    * The id of a group is a special String used by Skype to uniquely identify groups.
    * <p>
-   * In case you know about network IDs and the like: if a group "adress" is "19:xxx@thread.skype", its id is "xxx".
+   * In case you know about network IDs and the like: if a group "address" is "19:xxx@thread.skype", its id is "xxx".
    * 
    * @return The id of the group.
    */
@@ -213,4 +228,18 @@ public class Group {
     return "Group: " + getId();
   }
 
+  @Override
+  public Skype getSkype() {
+    return skype;
+  }
+
+  @Override
+  public String getIdentity() {
+    return id;
+  }
+
+  @Override
+  public ChatType getType() {
+    return ChatType.GROUP;
+  }
 }

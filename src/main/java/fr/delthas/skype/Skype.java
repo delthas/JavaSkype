@@ -1,6 +1,7 @@
 package fr.delthas.skype;
 
-import fr.delthas.skype.MessageListener.MessageEventType;
+import fr.delthas.skype.MessageListener.MessageEvent;
+import fr.delthas.skype.message.AbstractMessage;
 import fr.delthas.skype.message.Message;
 
 import java.io.IOException;
@@ -172,7 +173,6 @@ public final class Skype {
 
   /**
    * @return The current list of contacts of the account (snapshot, won't be updated).
-   *
    */
   public List<User> getContacts() {
     ensureConnected();
@@ -211,9 +211,8 @@ public final class Skype {
    * Enables or disables debug of the Skype library (globally). (By default logs are <b>disabled</b>.)
    * <p>
    * If enabled, debug information and logs will be written to a log file at the specified path. If the path is null, the debug will be disabled.
-   * 
+   *
    * @param path The path at which to write debugging information, or null to disable logging.
-   * 
    * @throws IOException may be thrown when adding a file handler to the logger
    */
   public static void setDebug(Path path) throws IOException {
@@ -376,6 +375,7 @@ public final class Skype {
 
   // --- Package-private methods that simply call the notification connector --- //
 
+  @Deprecated
   void sendUserMessage(User user, String message) {
     ensureConnected();
     try {
@@ -386,6 +386,51 @@ public final class Skype {
     }
   }
 
+  public enum MessageAction {
+    SEND,
+    EDIT,
+    REMOVE
+  }
+
+  /**
+   * Execute action with message.
+   * Message can be send, edit and removed
+   *
+   * @param chat where will be send action
+   * @param message object of some message type
+   * @param action send, edit or removed
+   */
+  void doMessageAction(Chat chat, Message message, MessageAction action) {
+    ensureConnected();
+    try {
+      logger.finer("Do " + action.name() + "-action in chat: " + chat + " message: " + message);
+      switch (action) {
+        case SEND:
+          notifConnector.sendMessage(chat, message);
+          break;
+        case EDIT:
+          if (message.getId() != null) {
+            notifConnector.sendMessage(chat, message);
+          } else {
+            logger.warning("Message has not id. Can't edit message: " + message);
+          }
+          break;
+        case REMOVE:
+          if (message.getId() != null) {
+            AbstractMessage abstractMessage = (AbstractMessage) message;
+            abstractMessage.setHtml("");
+            notifConnector.sendMessage(chat, message);
+          } else {
+            logger.warning("Message has not id. Can't remove message: " + message);
+          }
+          break;
+      }
+    } catch (IOException e) {
+      error(e);
+    }
+  }
+
+  @Deprecated
   void sendGroupMessage(Group group, String message) {
     ensureConnected();
     try {
@@ -447,7 +492,7 @@ public final class Skype {
     }
   }
 
-  <T extends Message> void doUserMessageEvent(MessageEventType event, User sender, T message) {
+  <T extends Message> void doUserMessageEvent(MessageEvent event, User sender, T message) {
     logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender);
     for (UserMessageListener listener : userMessageListeners) {
       switch (event) {
@@ -472,7 +517,7 @@ public final class Skype {
     }
   }
 
-  <T extends Message> void doGroupMessageEvent(MessageEventType event, Group group, User sender, T message) {
+  <T extends Message> void doGroupMessageEvent(MessageEvent event, Group group, User sender, T message) {
     logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender + " in group: " + group);
     for (GroupMessageListener listener : groupMessageListeners) {
       switch (event) {

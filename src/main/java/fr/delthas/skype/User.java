@@ -1,13 +1,14 @@
 package fr.delthas.skype;
 
 
+import fr.delthas.skype.message.Message;
+
 /**
  * A Skype account.
  * <p>
  * All information will be updated as updates are received (this object <b>is NOT</b> an immutable view/snapshot of a user account).
- *
  */
-public class User {
+public class User implements Chat {
 
   private final Skype skype;
   private final String username;
@@ -26,7 +27,6 @@ public class User {
 
   /**
    * Blocks this user (without reporting the account).
-   *
    */
   public void block() {
     skype.block(this);
@@ -34,7 +34,6 @@ public class User {
 
   /**
    * Unblocks this user.
-   *
    */
   public void unblock() {
     skype.unblock(this);
@@ -51,7 +50,6 @@ public class User {
 
   /**
    * Removes this user from the list of contacts of the Skype account. If the user isn't a contact, nothing happens.
-   *
    */
   public void removeFromContacts() {
     skype.removeFromContacts(this);
@@ -62,8 +60,24 @@ public class User {
    *
    * @param message The message to send to this user.
    */
+  @Deprecated
   public void sendMessage(String message) {
     skype.sendUserMessage(this, message);
+  }
+
+  @Override
+  public void sendMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.SEND);
+  }
+
+  @Override
+  public void editMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.EDIT);
+  }
+
+  @Override
+  public void removeMessage(Message message) {
+    skype.doMessageAction(this, message, Skype.MessageAction.REMOVE);
   }
 
   /**
@@ -228,4 +242,18 @@ public class User {
     return "User: " + getUsername();
   }
 
+  @Override
+  public Skype getSkype() {
+    return skype;
+  }
+
+  @Override
+  public String getIdentity() {
+    return username;
+  }
+
+  @Override
+  public ChatType getType() {
+    return ChatType.USER;
+  }
 }

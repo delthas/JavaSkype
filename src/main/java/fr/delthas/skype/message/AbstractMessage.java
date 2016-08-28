@@ -45,6 +45,7 @@ public abstract class AbstractMessage implements Message {
 
   public void setHtml(String html) {
     this.html = html;
+    this.text = Jsoup.parseBodyFragment(html, "").text();
   }
 
   public String getText() {
@@ -53,6 +54,14 @@ public abstract class AbstractMessage implements Message {
 
   public boolean isMe() {
     return isMe;
+  }
+
+  public void empty() {
+    setHtml("");
+  }
+
+  public boolean isEmpty() {
+    return html.isEmpty();
   }
 
   @Override

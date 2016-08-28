@@ -45,6 +45,14 @@ public enum MessageType {
     return UNKNOWN;
   }
 
+  public static MessageType getTypeByClass(Message message) {
+    if (message != null) {
+      String className = message.getClass().getSimpleName();
+      return getTypeByClass(className);
+    }
+    return UNKNOWN;
+  }
+
   public static MessageType getTypeByHeaderType(String headerType) {
     if (HEADER_TEXT.equals(headerType)) return TEXT;
     for (MessageType type : MessageType.values()) {

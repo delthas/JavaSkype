@@ -1,6 +1,6 @@
 package fr.delthas.skype;
 
-import fr.delthas.skype.MessageListener.MessageEventType;
+import fr.delthas.skype.MessageListener.MessageEvent;
 import fr.delthas.skype.message.*;
 import org.jsoup.Jsoup;
 import org.w3c.dom.Document;
@@ -18,6 +18,7 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -233,7 +234,7 @@ class NotifConnector {
               default:
                 break;
             }
-            MessageEventType eventType = editId == null ? MessageEventType.RECEIVED : isRemoved ? MessageEventType.REMOVED : MessageEventType.EDITED;
+            MessageEvent eventType = editId == null ? MessageEvent.RECEIVED : isRemoved ? MessageEvent.REMOVED : MessageEvent.EDITED;
             if (receiver instanceof Group) {
               skype.doGroupMessageEvent(eventType, (Group) receiver, (User) sender, message);
             } else {
@@ -541,10 +542,25 @@ class NotifConnector {
     pingThread.start();
   }
 
+  public void sendMessage(Chat chat, Message message) throws IOException {
+    String entity = "";
+    switch (chat.getType()) {
+      case GROUP:
+        entity = "19:" + chat.getIdentity() + "@thread.skype";
+        break;
+      case USER:
+        entity = "8:" + chat.getIdentity();
+        break;
+    }
+    sendMessage(entity, message);
+  }
+
+  @Deprecated
   public void sendUserMessage(User user, String message) throws IOException {
     sendMessage("8:" + user.getUsername(), getSanitized(message));
   }
 
+  @Deprecated
   public void sendGroupMessage(Group group, String message) throws IOException {
     sendMessage("19:" + group.getId() + "@thread.skype", getSanitized(message));
   }
@@ -580,10 +596,45 @@ class NotifConnector {
     sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
   }
 
+  @Deprecated
   private void sendMessage(String entity, String message) throws IOException {
     String body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", message,
         "Content-Type: application/user+xml", "Message-Type: RichText");
     sendPacket("SDG", "MSGR", body);
+  }
+
+  private void sendMessage(String entity, Message message) throws IOException {
+    List<String> headers = new ArrayList<>(Arrays.asList("Content-Type: application/user+xml", "Message-Type: " + MessageType.getTypeByClass(message).getHeaderType()));
+    if (message.getId() != null) {
+      headers.add("Skype-EditedId: " + message.getId());
+    }
+    AbstractMessage abstractMessage = (AbstractMessage) message;
+    String body = "";
+    switch (message.getType()) {
+      case TEXT:
+        TextMessage textMessage = (TextMessage) message;
+        body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", getSanitized(textMessage.getHtml()),
+            headers.toArray(new String[headers.size()]));
+        sendPacket("SDG", "MSGR", body);
+        break;
+      case PICTURE:
+      case FILE:
+      case VIDEO:
+      case CONTACT:
+      case MOJI:
+        if (abstractMessage.isEmpty()) {
+          body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", "",
+              headers.toArray(new String[headers.size()]));
+          sendPacket("SDG", "MSGR", body);
+        } else {
+          //Send this type of message not implemented yet;
+        }
+        break;
+      case UNKNOWN:
+        logger.warning("Strange UNKNOWN message has been tried to send.");
+        break;
+    }
+
   }
 
   public synchronized void disconnect() {
