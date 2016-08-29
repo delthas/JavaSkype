@@ -103,7 +103,8 @@ class NotifConnector {
             case "recentconversations-response":
               NodeList conversationNodes = doc.getElementsByTagName("conversation");
               List<String> threadIds = new ArrayList<>();
-              outer: for (int i = 0; i < conversationNodes.getLength(); i++) {
+              outer:
+              for (int i = 0; i < conversationNodes.getLength(); i++) {
                 Node conversation = conversationNodes.item(i);
                 String id = null;
                 boolean isThread = false;
@@ -147,7 +148,7 @@ class NotifConnector {
                     sb.delete(0, sb.length());
                     sb.append("<threads>");
                   }
-                  sb.append("<thread><id>19:").append(threadId).append("@thread.skype</id></thread>");
+                  sb.append("<thread><id>").append(threadId).append("</id></thread>");
                 }
                 String body = sb.append("</threads>").toString();
                 sendPacket("GET", "MSGR\\THREADS", body);
@@ -546,7 +547,7 @@ class NotifConnector {
     String entity = "";
     switch (chat.getType()) {
       case GROUP:
-        entity = "19:" + chat.getIdentity() + "@thread.skype";
+        entity = chat.getIdentity();
         break;
       case USER:
         entity = "8:" + chat.getIdentity();
@@ -562,29 +563,29 @@ class NotifConnector {
 
   @Deprecated
   public void sendGroupMessage(Group group, String message) throws IOException {
-    sendMessage("19:" + group.getId() + "@thread.skype", getSanitized(message));
+    sendMessage(group.getId(), getSanitized(message));
   }
 
   public void addUserToGroup(User user, Role role, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
         group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
 
   public void removeUserFromGroup(User user, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri></member></members></thread>", group.getId(),
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri></member></members></thread>", group.getId(),
         user.getUsername());
     sendPacket("DEL", "MSGR\\THREAD", body);
   }
 
   public void changeGroupTopic(Group group, String topic) throws IOException {
     String body =
-        String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
+        String.format("<thread><id>%s</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
 
   public void changeUserRole(User user, Role role, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
         group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
@@ -737,25 +738,11 @@ class NotifConnector {
     logger.finest("Parsing entity " + rawEntity);
     int senderBegin = rawEntity.indexOf(':');
     int network = Integer.parseInt(rawEntity.substring(0, senderBegin));
-    int end0 = rawEntity.indexOf('@');
-    int end1 = rawEntity.indexOf(';');
-    if (end0 == -1) {
-      end0 = Integer.MAX_VALUE;
-    }
-    if (end1 == -1) {
-      end1 = Integer.MAX_VALUE;
-    }
-    int senderEnd = Math.min(end0, end1);
-    String name;
-    if (senderEnd == Integer.MAX_VALUE) {
-      name = rawEntity.substring(senderBegin + 1);
-    } else {
-      name = rawEntity.substring(senderBegin + 1, senderEnd);
-    }
     if (network == 8) {
-      return skype.getUser(name);
+      int i = rawEntity.indexOf(';');
+      return skype.getUser(rawEntity.substring(2, i == -1 ? rawEntity.length() : i));
     } else if (network == 19) {
-      return skype.getGroup(name);
+      return skype.getGroup(rawEntity);
     } else {
       logger.warning("Error while parsing entity " + rawEntity + ": unknown network:" + network);
       throw new IllegalArgumentException();

@@ -14,11 +14,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
+import java.util.logging.*;
 import java.util.stream.Collectors;
 
 /**
@@ -396,9 +392,9 @@ public final class Skype {
    * Execute action with message.
    * Message can be send, edit and removed
    *
-   * @param chat where will be send action
+   * @param chat    where will be send action
    * @param message object of some message type
-   * @param action send, edit or removed
+   * @param action  send, edit or removed
    */
   void doMessageAction(Chat chat, Message message, MessageAction action) {
     ensureConnected();

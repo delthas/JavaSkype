@@ -1,7 +1,7 @@
 package fr.delthas.skype;
 
-import fr.delthas.skype.message.AbstractMessage;
 import fr.delthas.skype.message.Message;
+import fr.delthas.skype.message.TextMessage;
 import org.junit.Assert;
 
 import java.util.logging.Logger;
@@ -29,20 +29,16 @@ public class TestListeners {
       @Override
       public void messageReceived(Group group, User sender, Message message) {
         logger.info("Received " + message);
-        AbstractMessage abstractMessage = (AbstractMessage) message;
-        abstractMessage.setHtml("Edited");
+
         try {
           Thread.sleep(5000);
         } catch (InterruptedException e) {
           e.printStackTrace();
         }
-        group.editMessage(abstractMessage);
-        try {
-          Thread.sleep(5000);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-        group.removeMessage(abstractMessage);
+
+        TextMessage textMessage = new TextMessage(null, "hello");
+        group.sendMessage(textMessage);
+        logger.info("Send " + textMessage);
       }
 
       @Override

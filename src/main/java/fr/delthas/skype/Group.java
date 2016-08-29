@@ -12,9 +12,8 @@ import java.util.stream.Collectors;
  * A conversation between some Skype users.
  * <p>
  * All information will be updated as updates are received (this object <b>is NOT</b> an immutable view/snapshot of a group).
- *
  */
-public class Group implements Chat{
+public class Group implements Chat {
 
   private final Skype skype;
   private final String id;
@@ -53,8 +52,8 @@ public class Group implements Chat{
   /**
    * The id of a group is a special String used by Skype to uniquely identify groups.
    * <p>
-   * In case you know about network IDs and the like: if a group "address" is "19:xxx@thread.skype", its id is "xxx".
-   * 
+   * In case you know about network IDs and the like: if a group "address" is "19:xxx@thread.skype", its id is "19:xxx@thread.skype" or "19:xxx@p2p.thread.skype" .
+   *
    * @return The id of the group.
    */
   public String getId() {
@@ -104,7 +103,6 @@ public class Group implements Chat{
    *
    * @param user The user to add to this group.
    * @param role The role of the newly added user.
-   *
    * @return true if the user wasn't in the group, and the Skype account has group admin rights if needed.
    */
   public boolean addUser(User user, Role role) {
@@ -126,9 +124,7 @@ public class Group implements Chat{
    * Removes a user from this group. Group admin rights are needed.
    *
    * @param user The user to remove from this group.
-   *
    * @return true if the Skype account has admin rights, and the user was in the group.
-   *
    * @see #isSelfAdmin()
    */
   public boolean removeUser(User user) {
@@ -153,9 +149,7 @@ public class Group implements Chat{
    *
    * @param user The user whose role is to be changed
    * @param role The new role of the user.
-   *
    * @return true if the Skype account has admin rights, and the user was in the group and didn't have this role already.
-   *
    * @see #isSelfAdmin()
    */
   public boolean changeUserRole(User user, Role role) {
