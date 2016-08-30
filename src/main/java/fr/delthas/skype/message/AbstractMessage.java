@@ -11,18 +11,13 @@ public abstract class AbstractMessage implements Message {
   private MessageType type;
   private String html;
   private String text;
-  private boolean isMe;
+
 
   public AbstractMessage(String id, String html) {
     this.id = id;
     this.html = html;
     this.text = Jsoup.parseBodyFragment(html, "").text();
     this.type = MessageType.getTypeByClass(getClass().getSimpleName());
-  }
-
-  public AbstractMessage(String id, String html, boolean isMe) {
-    this(id, html);
-    this.isMe = isMe;
   }
 
   @Override
@@ -52,10 +47,6 @@ public abstract class AbstractMessage implements Message {
     return text;
   }
 
-  public boolean isMe() {
-    return isMe;
-  }
-
   public void empty() {
     setHtml("");
   }
@@ -71,7 +62,6 @@ public abstract class AbstractMessage implements Message {
         ", type=" + type +
         ", html='" + html + '\'' +
         ", text='" + text + '\'' +
-        ", isMe=" + isMe +
         '}';
   }
 }

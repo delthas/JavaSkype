@@ -9,8 +9,4 @@ public class MojiMessage extends AbstractMessage {
     super(id, html);
   }
 
-  public MojiMessage(String id, String html, boolean isMe) {
-    super(id, html, isMe);
-  }
-
 }

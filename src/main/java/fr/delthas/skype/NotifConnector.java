@@ -201,6 +201,11 @@ class NotifConnector {
               html = formatted.body.substring(Integer.parseInt(isMe));
             }
             if (editId != null) {
+              String editOffset = formatted.headers.get("Skype-EditOffset");
+              if (editOffset != null) {
+                Integer offset = Integer.parseInt(editOffset);
+                html = html.substring(offset);
+              }
               html = html.replaceAll("<e_m.*t=\".*\"\\/>", "");
               isRemoved = html.isEmpty();
             }
@@ -212,7 +217,14 @@ class NotifConnector {
             }
             switch (type) {
               case TEXT:
-                message = new TextMessage(id, html, isMe != null);
+                String quote = null;
+//                Pattern quotes = Pattern.compile("<quote.*>.*<legacyquote>(.*)<\\/legacyquote>(.*)<legacyquote>.*<\\/quote>(.*)", DOTALL);
+//                Matcher matcher = quotes.matcher(html);
+//                if (matcher.matches()) {
+//                  quote = matcher.group(1) + matcher.group(2);
+//                  html = matcher.group(3);
+//                }
+                message = new TextMessage(id, html, isMe != null, quote);
                 break;
               case PICTURE:
                 message = new PictureMessage(id, html);

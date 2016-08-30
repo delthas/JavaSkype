@@ -9,8 +9,4 @@ public class ContactMessage extends AbstractMessage {
     super(id, html);
   }
 
-  public ContactMessage(String id, String html, boolean isMe) {
-    super(id, html, isMe);
-  }
-
 }
