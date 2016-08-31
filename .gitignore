@@ -3,6 +3,8 @@
 *.class
 hs_err_pid*
 *.jar
+*.war
+*.ear
 
 # maven files
 
@@ -13,6 +15,7 @@ pom.xml.versionsBackup
 pom.xml.next
 release.properties
 repo/.locks
+dependency-reduced-pom.xml
 
 # eclipse files
 
@@ -30,3 +33,30 @@ local.properties
 *.launch
 .classpath
 .target
+
+# NetBeans
+nbproject/
+build/
+nbbuild/
+dist/
+nbdist/
+nbactions.xml
+nb-configuration.xml
+
+# IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.*
+!.gitattributes
+!.gitignore
+*~

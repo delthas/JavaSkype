@@ -1,0 +1,12 @@
+<!--RichText/Media_GenericFile-->
+<URIObject type="File.1" uri="https://api.asm.skype.com/v1/objects/0-weu-d1-39307d971c65d7d697876272123304e4"
+           url_thumbnail="https://api.asm.skype.com/v1/objects/0-weu-d1-39307d971c65d7d697876272123304e4/views/thumbnail">
+    To view this shared file, go to:
+    <Title>hosts</Title>
+    <Description>hosts</Description>
+    <a href="https://login.skype.com/login/sso?go=webclient.xmm&amp;docid=0-weu-d1-39307d971c65d7d697876272123304e4">
+        https://login.skype.com/login/sso?go=webclient.xmm&amp;docid=0-weu-d1-39307d971c65d7d697876272123304e4
+    </a>
+    <FileSize v="1254"/>
+    <OriginalName v="hosts"/>
+</URIObject>

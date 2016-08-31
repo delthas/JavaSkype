@@ -1,14 +1,24 @@
 package fr.delthas.skype;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
+import fr.delthas.skype.MessageListener.MessageEvent;
+import fr.delthas.skype.message.*;
+import org.jsoup.Jsoup;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import javax.net.ssl.SSLSocketFactory;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -18,17 +28,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.net.ssl.SSLSocketFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
-import org.jsoup.Jsoup;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
+import static fr.delthas.skype.Constants.HEADER_RICH_TEXT;
+import static fr.delthas.skype.Constants.HEADER_TEXT;
 
 class NotifConnector {
 
@@ -102,7 +103,8 @@ class NotifConnector {
             case "recentconversations-response":
               NodeList conversationNodes = doc.getElementsByTagName("conversation");
               List<String> threadIds = new ArrayList<>();
-              outer: for (int i = 0; i < conversationNodes.getLength(); i++) {
+              outer:
+              for (int i = 0; i < conversationNodes.getLength(); i++) {
                 Node conversation = conversationNodes.item(i);
                 String id = null;
                 boolean isThread = false;
@@ -146,7 +148,7 @@ class NotifConnector {
                     sb.delete(0, sb.length());
                     sb.append("<threads>");
                   }
-                  sb.append("<thread><id>19:").append(threadId).append("@thread.skype</id></thread>");
+                  sb.append("<thread><id>").append(threadId).append("</id></thread>");
                 }
                 String body = sb.append("</threads>").toString();
                 sendPacket("GET", "MSGR\\THREADS", body);
@@ -183,56 +185,110 @@ class NotifConnector {
           }
           Object sender = parseEntity(formatted.sender);
           Object receiver = parseEntity(formatted.receiver);
-          switch (messageType) {
-            case "Text":
-            case "RichText":
-              if (!(sender instanceof User)) {
-                logger.fine("Received " + messageType + " message sent from " + sender + " which isn't a user");
+          if (messageType.startsWith(HEADER_RICH_TEXT) || messageType.startsWith(HEADER_TEXT)) {
+            // work with messages
+            if (!(sender instanceof User)) {
+              logger.fine("Received " + messageType + " message sent from " + sender + " which isn't a user");
+              break;
+            }
+            boolean isRemoved = false;
+
+            String isMe = formatted.headers.get("Skype-EmoteOffset");
+            String messageId = formatted.headers.get("Client-Message-ID");
+            String editId = formatted.headers.get("Skype-EditedId");
+            String html = formatted.body;
+            if (isMe != null) {
+              html = formatted.body.substring(Integer.parseInt(isMe));
+            }
+            if (editId != null) {
+              String editOffset = formatted.headers.get("Skype-EditOffset");
+              if (editOffset != null) {
+                Integer offset = Integer.parseInt(editOffset);
+                html = html.substring(offset);
+              }
+              html = html.replaceAll("<e_m.*t=\".*\"\\/>", "");
+              isRemoved = html.isEmpty();
+            }
+            String id = messageId != null ? messageId : editId;
+            Message message = null;
+            MessageType type = MessageType.getTypeByHeaderType((messageType));
+            if (type == null) {
+              break;
+            }
+            switch (type) {
+              case TEXT:
+                String singleRow = html.replaceAll("\r", "").replaceAll("\n", "");
+                Boolean isHasQuotes = Pattern.compile(".*<quote.*>.*<\\/quote>.*").matcher(singleRow).matches();
+                message = new TextMessage(id, html, isMe != null, isHasQuotes);
                 break;
-              }
-              if (receiver instanceof Group) {
-                skype.groupMessageReceived((Group) receiver, (User) sender, getPlaintext(formatted.body));
-              } else {
-                skype.userMessageReceived((User) sender, getPlaintext(formatted.body));
-              }
-              break;
-            case "ThreadActivity/AddMember":
-              List<String> usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
-              break;
-            case "ThreadActivity/DeleteMember":
-              usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
-              break;
-            case "ThreadActivity/TopicUpdate":
-              skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
-              break;
-            case "ThreadActivity/RoleUpdate":
-              Document doc = getDocument(formatted.body);
-              NodeList targetNodes = doc.getElementsByTagName("target");
-              List<Pair<User, Role>> roles = new ArrayList<>(targetNodes.getLength());
-              for (int i = 0; i < targetNodes.getLength(); i++) {
-                Node targetNode = targetNodes.item(i);
-                User user = null;
-                Role role = null;
-                for (int j = 0; j < targetNode.getChildNodes().getLength(); j++) {
-                  Node targetPropertyNode = targetNode.getChildNodes().item(j);
-                  if (targetPropertyNode.getNodeName().equals("id")) {
-                    user = (User) parseEntity(targetPropertyNode.getTextContent());
-                    skype.updateUser(user);
-                  } else if (targetPropertyNode.getNodeName().equals("role")) {
-                    role = Role.getRole(targetPropertyNode.getTextContent());
+              case PICTURE:
+                message = new PictureMessage(id, html);
+                break;
+              case FILE:
+                message = new FileMessage(id, html);
+                break;
+              case VIDEO:
+                message = new VideoMessage(id, html);
+                break;
+              case CONTACT:
+                message = new ContactMessage(id, html);
+                break;
+              case MOJI:
+                message = new MojiMessage(id, html);
+                break;
+              case UNKNOWN:
+                message = new UnknownMessage(id, html);
+                break;
+              default:
+                break;
+            }
+            MessageEvent eventType = editId == null ? MessageEvent.RECEIVED : isRemoved ? MessageEvent.REMOVED : MessageEvent.EDITED;
+            if (receiver instanceof Group) {
+              skype.doGroupMessageEvent(eventType, (Group) receiver, (User) sender, message);
+            } else {
+              skype.doUserMessageEvent(eventType, (User) sender, message);
+            }
+          } else {
+            switch (messageType) {
+              case "ThreadActivity/AddMember":
+                List<String> usernames = getXMLFields(formatted.body, "target");
+                skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+                break;
+              case "ThreadActivity/DeleteMember":
+                usernames = getXMLFields(formatted.body, "target");
+                skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+                break;
+              case "ThreadActivity/TopicUpdate":
+                skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
+                break;
+              case "ThreadActivity/RoleUpdate":
+                Document doc = getDocument(formatted.body);
+                NodeList targetNodes = doc.getElementsByTagName("target");
+                List<Pair<User, Role>> roles = new ArrayList<>(targetNodes.getLength());
+                for (int i = 0; i < targetNodes.getLength(); i++) {
+                  Node targetNode = targetNodes.item(i);
+                  User user = null;
+                  Role role = null;
+                  for (int j = 0; j < targetNode.getChildNodes().getLength(); j++) {
+                    Node targetPropertyNode = targetNode.getChildNodes().item(j);
+                    if (targetPropertyNode.getNodeName().equals("id")) {
+                      user = (User) parseEntity(targetPropertyNode.getTextContent());
+                      skype.updateUser(user);
+                    } else if (targetPropertyNode.getNodeName().equals("role")) {
+                      role = Role.getRole(targetPropertyNode.getTextContent());
+                    }
+                  }
+                  if (user != null && role != null) {
+                    roles.add(new Pair<>(user, role));
                   }
                 }
-                if (user != null && role != null) {
-                  roles.add(new Pair<>(user, role));
-                }
-              }
-              skype.usersRolesChanged((Group) sender, roles);
-              break;
-            default:
-              break;
+                skype.usersRolesChanged((Group) sender, roles);
+                break;
+              default:
+                break;
+            }
           }
+
         }
         break;
       case "NFY":
@@ -494,34 +550,49 @@ class NotifConnector {
     pingThread.start();
   }
 
+  public void sendMessage(Chat chat, Message message) throws IOException {
+    String entity = "";
+    switch (chat.getType()) {
+      case GROUP:
+        entity = chat.getIdentity();
+        break;
+      case USER:
+        entity = "8:" + chat.getIdentity();
+        break;
+    }
+    sendMessage(entity, message);
+  }
+
+  @Deprecated
   public void sendUserMessage(User user, String message) throws IOException {
     sendMessage("8:" + user.getUsername(), getSanitized(message));
   }
 
+  @Deprecated
   public void sendGroupMessage(Group group, String message) throws IOException {
-    sendMessage("19:" + group.getId() + "@thread.skype", getSanitized(message));
+    sendMessage(group.getId(), getSanitized(message));
   }
 
   public void addUserToGroup(User user, Role role, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
         group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
 
   public void removeUserFromGroup(User user, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri></member></members></thread>", group.getId(),
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri></member></members></thread>", group.getId(),
         user.getUsername());
     sendPacket("DEL", "MSGR\\THREAD", body);
   }
 
   public void changeGroupTopic(Group group, String topic) throws IOException {
     String body =
-        String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
+        String.format("<thread><id>%s</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
 
   public void changeUserRole(User user, Role role, Group group) throws IOException {
-    String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
+    String body = String.format("<thread><id>%s</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
         group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
@@ -533,10 +604,45 @@ class NotifConnector {
     sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
   }
 
+  @Deprecated
   private void sendMessage(String entity, String message) throws IOException {
     String body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", message,
         "Content-Type: application/user+xml", "Message-Type: RichText");
     sendPacket("SDG", "MSGR", body);
+  }
+
+  private void sendMessage(String entity, Message message) throws IOException {
+    List<String> headers = new ArrayList<>(Arrays.asList("Content-Type: application/user+xml", "Message-Type: " + MessageType.getTypeByClass(message).getHeaderType()));
+    if (message.getId() != null) {
+      headers.add("Skype-EditedId: " + message.getId());
+    }
+    AbstractMessage abstractMessage = (AbstractMessage) message;
+    String body = "";
+    switch (message.getType()) {
+      case TEXT:
+        TextMessage textMessage = (TextMessage) message;
+        body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", getSanitized(textMessage.getHtml()),
+            headers.toArray(new String[headers.size()]));
+        sendPacket("SDG", "MSGR", body);
+        break;
+      case PICTURE:
+      case FILE:
+      case VIDEO:
+      case CONTACT:
+      case MOJI:
+        if (abstractMessage.isEmpty()) {
+          body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", "",
+              headers.toArray(new String[headers.size()]));
+          sendPacket("SDG", "MSGR", body);
+        } else {
+          //Send this type of message not implemented yet;
+        }
+        break;
+      case UNKNOWN:
+        logger.warning("Strange UNKNOWN message has been tried to send.");
+        break;
+    }
+
   }
 
   public synchronized void disconnect() {
@@ -639,25 +745,11 @@ class NotifConnector {
     logger.finest("Parsing entity " + rawEntity);
     int senderBegin = rawEntity.indexOf(':');
     int network = Integer.parseInt(rawEntity.substring(0, senderBegin));
-    int end0 = rawEntity.indexOf('@');
-    int end1 = rawEntity.indexOf(';');
-    if (end0 == -1) {
-      end0 = Integer.MAX_VALUE;
-    }
-    if (end1 == -1) {
-      end1 = Integer.MAX_VALUE;
-    }
-    int senderEnd = Math.min(end0, end1);
-    String name;
-    if (senderEnd == Integer.MAX_VALUE) {
-      name = rawEntity.substring(senderBegin + 1);
-    } else {
-      name = rawEntity.substring(senderBegin + 1, senderEnd);
-    }
     if (network == 8) {
-      return skype.getUser(name);
+      int i = rawEntity.indexOf(';');
+      return skype.getUser(rawEntity.substring(2, i == -1 ? rawEntity.length() : i));
     } else if (network == 19) {
-      return skype.getGroup(name);
+      return skype.getGroup(rawEntity);
     } else {
       logger.warning("Error while parsing entity " + rawEntity + ": unknown network:" + network);
       throw new IllegalArgumentException();

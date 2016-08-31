@@ -1,0 +1,10 @@
+<URIObject type="Video.1/Message.1" uri="https://api.asm.skype.com/v1/objects/0-neu-d1-d22932af94c973a48a944f983da278cd"
+           url_thumbnail="https://api.asm.skype.com/v1/objects/0-neu-d1-d22932af94c973a48a944f983da278cd/views/thumbnail">To view this video
+message, go to:
+<Title>Video Message</Title>
+<Description>Video Message</Description>
+<a href="https://login.skype.com/login/sso?go=xmmfallback&amp;vim=0-neu-d1-d22932af94c973a48a944f983da278cd">
+    https://login.skype.com/login/sso?go=xmmfallback&amp;vim=0-neu-d1-d22932af94c973a48a944f983da278cd
+</a>
+<OriginalName v="vidm1472218202.mp4"/>
+</URIObject>

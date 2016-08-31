@@ -1,0 +1,10 @@
+<!--RichText/UriObject-->
+<URIObject type="Picture.1" uri="https://api.asm.skype.com/v1/objects/0-weu-d1-347eba640ba729af0d46f4acb3deffce"
+           url_thumbnail="https://api.asm.skype.com/v1/objects/0-weu-d1-347eba640ba729af0d46f4acb3deffce/views/imgt1">To view this shared
+    photo, go to:
+    <a href="https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d1-347eba640ba729af0d46f4acb3deffce">
+        https://login.skype.com/login/sso?go=xmmfallback?pic=0-weu-d1-347eba640ba729af0d46f4acb3deffce
+    </a>
+    <OriginalName v="card.png"/>
+    <meta type="photo" originalName="card.png"/>
+</URIObject>

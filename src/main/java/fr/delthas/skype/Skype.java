@@ -1,5 +1,9 @@
 package fr.delthas.skype;
 
+import fr.delthas.skype.MessageListener.MessageEvent;
+import fr.delthas.skype.message.AbstractMessage;
+import fr.delthas.skype.message.Message;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -10,11 +14,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
+import java.util.logging.*;
 import java.util.stream.Collectors;
 
 /**
@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
  * LF which will be replaced with CRLF if needed.
  * <p>
  * <b>If you want to report a bug, please enable debug/logs with {@link Skype#setDebug(Path)}, before using {@link #connect()}.</b>
- *
  */
 public final class Skype {
 
@@ -78,9 +77,8 @@ public final class Skype {
   /**
    * Calls {@code connect(Presence.CONNECTED)}.
    *
-   * @throws IOException If an error is thrown while connecting.
+   * @throws IOException          If an error is thrown while connecting.
    * @throws InterruptedException If the connection is interrupted.
-   *
    * @see #connect(Presence)
    */
   public void connect() throws IOException, InterruptedException {
@@ -92,8 +90,7 @@ public final class Skype {
    * Connects the Skype interface. Will block until connected.
    *
    * @param presence The initial presence of the Skype account after connection. Cannot be {@link Presence#OFFLINE}.
-   *
-   * @throws IOException If an error is thrown while connecting.
+   * @throws IOException          If an error is thrown while connecting.
    * @throws InterruptedException If the connection is interrupted.
    */
   public void connect(Presence presence) throws IOException, InterruptedException {
@@ -172,7 +169,6 @@ public final class Skype {
 
   /**
    * @return The current list of contacts of the account (snapshot, won't be updated).
-   *
    */
   public List<User> getContacts() {
     ensureConnected();
@@ -211,9 +207,8 @@ public final class Skype {
    * Enables or disables debug of the Skype library (globally). (By default logs are <b>disabled</b>.)
    * <p>
    * If enabled, debug information and logs will be written to a log file at the specified path. If the path is null, the debug will be disabled.
-   * 
+   *
    * @param path The path at which to write debugging information, or null to disable logging.
-   * 
    * @throws IOException may be thrown when adding a file handler to the logger
    */
   public static void setDebug(Path path) throws IOException {
@@ -376,6 +371,7 @@ public final class Skype {
 
   // --- Package-private methods that simply call the notification connector --- //
 
+  @Deprecated
   void sendUserMessage(User user, String message) {
     ensureConnected();
     try {
@@ -386,6 +382,51 @@ public final class Skype {
     }
   }
 
+  public enum MessageAction {
+    SEND,
+    EDIT,
+    REMOVE
+  }
+
+  /**
+   * Execute action with message.
+   * Message can be send, edit and removed
+   *
+   * @param chat    where will be send action
+   * @param message object of some message type
+   * @param action  send, edit or removed
+   */
+  void doMessageAction(Chat chat, Message message, MessageAction action) {
+    ensureConnected();
+    try {
+      logger.finer("Do " + action.name() + "-action in chat: " + chat + " message: " + message);
+      switch (action) {
+        case SEND:
+          notifConnector.sendMessage(chat, message);
+          break;
+        case EDIT:
+          if (message.getId() != null) {
+            notifConnector.sendMessage(chat, message);
+          } else {
+            logger.warning("Message has not id. Can't edit message: " + message);
+          }
+          break;
+        case REMOVE:
+          if (message.getId() != null) {
+            AbstractMessage abstractMessage = (AbstractMessage) message;
+            abstractMessage.setHtml("");
+            notifConnector.sendMessage(chat, message);
+          } else {
+            logger.warning("Message has not id. Can't remove message: " + message);
+          }
+          break;
+      }
+    } catch (IOException e) {
+      error(e);
+    }
+  }
+
+  @Deprecated
   void sendGroupMessage(Group group, String message) {
     ensureConnected();
     try {
@@ -438,6 +479,7 @@ public final class Skype {
 
   // --- Listeners call methods --- //
 
+  @Deprecated
   void userMessageReceived(User sender, String message) {
     updateUser(sender);
     logger.finer("Received message: " + message + " from user: " + sender);
@@ -446,10 +488,45 @@ public final class Skype {
     }
   }
 
+  <T extends Message> void doUserMessageEvent(MessageEvent event, User sender, T message) {
+    logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender);
+    for (UserMessageListener listener : userMessageListeners) {
+      switch (event) {
+        case RECEIVED:
+          listener.messageReceived(sender, message);
+          break;
+        case EDITED:
+          listener.messageEdited(sender, message);
+          break;
+        case REMOVED:
+          listener.messageRemoved(sender, message);
+          break;
+      }
+    }
+  }
+
+  @Deprecated
   void groupMessageReceived(Group group, User sender, String message) {
     logger.finer("Received group message: " + message + " from user: " + sender + " in group: " + group);
     for (GroupMessageListener listener : groupMessageListeners) {
       listener.messageReceived(group, sender, message);
+    }
+  }
+
+  <T extends Message> void doGroupMessageEvent(MessageEvent event, Group group, User sender, T message) {
+    logger.finer("Event: " + event + ", message('" + message.getType().getName() + "'): " + message + " from user: " + sender + " in group: " + group);
+    for (GroupMessageListener listener : groupMessageListeners) {
+      switch (event) {
+        case RECEIVED:
+          listener.messageReceived(group, sender, message);
+          break;
+        case EDITED:
+          listener.messageEdited(group, sender, message);
+          break;
+        case REMOVED:
+          listener.messageRemoved(group, sender, message);
+          break;
+      }
     }
   }
 

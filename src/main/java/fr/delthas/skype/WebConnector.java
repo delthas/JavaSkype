@@ -115,9 +115,11 @@ class WebConnector {
       } else {
         userUsername = userJSON.getString("id");
         userDisplayName = userJSON.optString("display_name", null);
-        JSONObject nameJSON = userJSON.getJSONObject("name");
-        userFirstName = nameJSON.optString("first", null);
-        userLastName = nameJSON.optString("surname", null);
+        if (userJSON.optString("type", "skype").equals("skype")) {
+          JSONObject nameJSON = userJSON.getJSONObject("name");
+          userFirstName = nameJSON.optString("first", null);
+          userLastName = nameJSON.optString("surname", null);
+        }
         userMood = userJSON.optString("mood", null);
         if (userJSON.has("locations")) {
           JSONObject locationJSON = userJSON.optJSONArray("locations").optJSONObject(0);
