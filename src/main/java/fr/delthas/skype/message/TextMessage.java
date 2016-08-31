@@ -5,7 +5,7 @@ package fr.delthas.skype.message;
  */
 public class TextMessage extends AbstractMessage {
   private boolean isMe;
-  private String quote;
+  private boolean hasQuotes;
 
   public TextMessage(String id, String html) {
     super(id, html);
@@ -16,20 +16,28 @@ public class TextMessage extends AbstractMessage {
     this.isMe = isMe;
   }
 
-  public TextMessage(String id, String html, boolean isMe, String quote) {
+  public TextMessage(String id, String html, boolean isMe, boolean hasQuotes) {
     this(id, html, isMe);
-    this.quote = quote;
+    this.hasQuotes = hasQuotes;
   }
 
-  public String getQuote() {
-    return quote;
+  public boolean hasQuotes() {
+    return hasQuotes;
   }
 
-  public void setQuote(String quote) {
-    this.quote = quote;
+  public void setHasQuotes(boolean hasQuotes) {
+    this.hasQuotes = hasQuotes;
   }
 
   public boolean isMe() {
     return isMe;
+  }
+
+  @Override
+  public String toString() {
+    return "TextMessage{" +
+        "isMe=" + isMe +
+        ", hasQuotes=" + hasQuotes +
+        "} " + super.toString();
   }
 }

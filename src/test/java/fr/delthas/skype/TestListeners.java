@@ -29,16 +29,6 @@ public class TestListeners {
       @Override
       public void messageReceived(Group group, User sender, Message message) {
         logger.info("Received " + message);
-
-        try {
-          Thread.sleep(5000);
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-
-        TextMessage textMessage = new TextMessage(null, "hello");
-        group.sendMessage(textMessage);
-        logger.info("Send " + textMessage);
       }
 
       @Override

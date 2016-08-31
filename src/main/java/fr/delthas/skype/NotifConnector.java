@@ -217,14 +217,9 @@ class NotifConnector {
             }
             switch (type) {
               case TEXT:
-                String quote = null;
-//                Pattern quotes = Pattern.compile("<quote.*>.*<legacyquote>(.*)<\\/legacyquote>(.*)<legacyquote>.*<\\/quote>(.*)", DOTALL);
-//                Matcher matcher = quotes.matcher(html);
-//                if (matcher.matches()) {
-//                  quote = matcher.group(1) + matcher.group(2);
-//                  html = matcher.group(3);
-//                }
-                message = new TextMessage(id, html, isMe != null, quote);
+                String singleRow = html.replaceAll("\r", "").replaceAll("\n", "");
+                Boolean isHasQuotes = Pattern.compile(".*<quote.*>.*<\\/quote>.*").matcher(singleRow).matches();
+                message = new TextMessage(id, html, isMe != null, isHasQuotes);
                 break;
               case PICTURE:
                 message = new PictureMessage(id, html);
