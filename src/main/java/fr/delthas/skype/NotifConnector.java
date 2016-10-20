@@ -202,7 +202,7 @@ class NotifConnector {
               break;
             case "ThreadActivity/DeleteMember":
               usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+              skype.usersRemovedFromGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
               break;
             case "ThreadActivity/TopicUpdate":
               skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
