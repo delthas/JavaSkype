@@ -15,8 +15,6 @@ import org.jsoup.Connection;
 import org.jsoup.Connection.Method;
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.select.Elements;
 
 class WebConnector {
 
@@ -25,8 +23,6 @@ class WebConnector {
   private final Skype skype;
   private final String username, password;
   private String skypeToken;
-  private String session;
-  private String sessionToken;
 
   public WebConnector(Skype skype, String username, String password) {
     this.skype = skype;
@@ -172,39 +168,14 @@ class WebConnector {
       logger.log(Level.SEVERE, "", e);
       throw e;
     }
-
-    Document doc = Jsoup.connect("https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com%2F").timeout(10000).get();
-
-    Elements pieElements = doc.select("#pie");
-    Elements etmElements = doc.select("#etm");
-    if (pieElements.isEmpty() || etmElements.isEmpty()) {
-      ParseException e = new ParseException("No pie or etm in login.skype.com response: " + doc.outerHtml());
-      logger.log(Level.SEVERE, "", e);
-      throw e;
-    }
-
-    String pie = pieElements.get(0).val();
-    String etm = etmElements.get(0).val();
-
-    Response r = Jsoup.connect("https://login.skype.com/login").timeout(10000).ignoreContentType(true).method(Method.POST).data("username", username)
-        .data("password", password).data("pie", pie).data("etm", etm).execute();
-    session = r.cookie("skype-session");
-    sessionToken = r.cookie("skype-session-token");
-    if (session == null || sessionToken == null) {
-      ParseException e = new ParseException("Error while getting session token: " + r.body());
-      logger.log(Level.SEVERE, "", e);
-      throw e;
-    }
   }
 
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
     String url = absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath);
     Connection conn = Jsoup.connect(url).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
     logger.finest("Sending " + method + " request at " + url);
-    if (skypeToken != null && session != null && sessionToken != null) {
+    if (skypeToken != null) {
       conn.header("X-Skypetoken", skypeToken);
-      conn.cookie("skype-session", session);
-      conn.cookie("skype-session-token", sessionToken);
     } else {
       logger.fine("No token sent for the request at: " + url);
     }
