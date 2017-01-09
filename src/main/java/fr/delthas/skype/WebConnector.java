@@ -1,13 +1,5 @@
 package fr.delthas.skype;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -15,6 +7,14 @@ import org.jsoup.Connection;
 import org.jsoup.Connection.Method;
 import org.jsoup.Connection.Response;
 import org.jsoup.Jsoup;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 class WebConnector {
 
@@ -28,6 +28,13 @@ class WebConnector {
     this.skype = skype;
     this.username = username;
     this.password = password;
+  }
+
+  private static String getPlaintext(String string) {
+    if (string == null) {
+      return null;
+    }
+    return Jsoup.parseBodyFragment(string).text();
   }
 
   public void start() throws IOException {
@@ -157,7 +164,7 @@ class WebConnector {
           logger.log(Level.SEVERE, "", e);
           throw e;
         } else {
-          IOException e = new IOException("Unknown error while connecting to Skype: " + jsonResponse.toString());
+          IOException e = new IOException("Unknown error while connecting to Skype: " + jsonResponse);
           logger.log(Level.SEVERE, "", e);
           throw e;
         }
@@ -171,7 +178,7 @@ class WebConnector {
   }
 
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
-    String url = absoluteApiPath ? apiPath : (SERVER_HOSTNAME + apiPath);
+    String url = absoluteApiPath ? apiPath : SERVER_HOSTNAME + apiPath;
     Connection conn = Jsoup.connect(url).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
     logger.finest("Sending " + method + " request at " + url);
     if (skypeToken != null) {
@@ -185,12 +192,6 @@ class WebConnector {
 
   private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
     return sendRequest(method, apiPath, false, keyval);
-  }
-
-  private static String getPlaintext(String string) {
-    if (string == null)
-      return null;
-    return Jsoup.parseBodyFragment(string).text();
   }
 
 }

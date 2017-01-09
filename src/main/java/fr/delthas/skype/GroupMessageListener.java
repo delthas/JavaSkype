@@ -5,6 +5,7 @@ package fr.delthas.skype;
  * A listener for new messages sent to a Skype account.
  *
  */
+@FunctionalInterface
 public interface GroupMessageListener {
 
   /**
@@ -14,6 +15,6 @@ public interface GroupMessageListener {
    * @param sender The sender of the message.
    * @param message The message sent.
    */
-  public void messageReceived(Group group, User sender, String message);
+  void messageReceived(Group group, User sender, String message);
 
 }

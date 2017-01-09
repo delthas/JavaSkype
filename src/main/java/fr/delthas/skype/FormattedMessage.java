@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-class FormattedMessage {
+final class FormattedMessage {
 
   private static final String PARSING_ERROR_MESSAGE = "Error while parsing formatted message";
   public final String sender;
@@ -77,7 +77,7 @@ class FormattedMessage {
     String reliability = "Reliability: 1.0\r\n";
     StringBuilder userHeaders = new StringBuilder();
     for (String header : headers) {
-      userHeaders.append(header + "\r\n");
+      userHeaders.append(header).append("\r\n");
     }
     String contentLength = String.format("Content-Length: %d\r\n", body.getBytes(StandardCharsets.UTF_8).length);
     String formattedMessage = String.format("%s\r\n%s\r\n%s\r\n%s%s\r\n%s", routing, reliability, type, userHeaders, contentLength, body);

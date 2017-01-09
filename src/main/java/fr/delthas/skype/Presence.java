@@ -28,15 +28,10 @@ public enum Presence {
    * The Skype account you use will never have this value. Other users, that are "hidden", will have this presence value instead of {@link #HIDDEN}.
    */
   OFFLINE("");
+  private final String presenceString;
 
-  private Presence(String presenceString) {
+  Presence(String presenceString) {
     this.presenceString = presenceString;
-  }
-
-  private String presenceString;
-
-  String getPresenceString() {
-    return presenceString;
   }
 
   static Presence getPresence(String presenceString) {
@@ -46,5 +41,9 @@ public enum Presence {
       }
     }
     throw new IllegalArgumentException("Unknown presence string: " + presenceString);
+  }
+
+  String getPresenceString() {
+    return presenceString;
   }
 }

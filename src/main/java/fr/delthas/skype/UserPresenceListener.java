@@ -7,6 +7,7 @@ package fr.delthas.skype;
  * @see Presence
  *
  */
+@FunctionalInterface
 public interface UserPresenceListener {
 
   /**
@@ -16,6 +17,6 @@ public interface UserPresenceListener {
    * @param oldPresence The presence the user had before it changed.
    * @param presence The new presence of the user.
    */
-  public void presenceChanged(User user, Presence oldPresence, Presence presence);
+  void presenceChanged(User user, Presence oldPresence, Presence presence);
 
 }

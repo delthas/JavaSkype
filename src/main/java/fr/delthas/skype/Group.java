@@ -39,7 +39,7 @@ public class Group {
    * The id of a group is a special String used by Skype to uniquely identify groups.
    * <p>
    * In case you know about network IDs and the like: if a group "adress" is "19:xxx@thread.skype", its id is "xxx".
-   * 
+   *
    * @return The id of the group.
    */
   public String getId() {
@@ -53,6 +53,10 @@ public class Group {
     return topic;
   }
 
+  void setTopic(String topic) {
+    this.topic = topic;
+  }
+
   /**
    * Changes the topic of this group
    *
@@ -60,10 +64,6 @@ public class Group {
    */
   public void changeTopic(String topic) {
     skype.changeGroupTopic(this, topic);
-  }
-
-  void setTopic(String topic) {
-    this.topic = topic;
   }
 
   /**
@@ -153,7 +153,7 @@ public class Group {
       Pair<User, Role> pair = it.next();
       if (user.equals(pair.getFirst())) {
         // need to return if it already has the same role to avoid getting an error
-        if (role.equals(pair.getSecond())) {
+        if (role == pair.getSecond()) {
           return false;
         }
         it.remove();

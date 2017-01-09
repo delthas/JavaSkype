@@ -1,10 +1,17 @@
 package fr.delthas.skype;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.StringReader;
+import org.jsoup.Jsoup;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import javax.net.ssl.SSLSocketFactory;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -18,38 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.net.ssl.SSLSocketFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-
-import org.jsoup.Jsoup;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
-
 class NotifConnector {
-
-  private static class Packet {
-
-    public final String command;
-    public final String params;
-    public final String body;
-
-    public Packet(String command, String params, String body) {
-      this.command = command;
-      this.params = params;
-      this.body = body;
-    }
-
-    @Override
-    public String toString() {
-      return String.format("Command: %s Params: %s Body: %s", command, params, body);
-    }
-
-  }
 
   private static final Logger logger = Logger.getLogger("fr.delthas.skype.notif");
   private static final String EPID = generateEPID(); // generate EPID at runtime
@@ -59,11 +35,11 @@ class NotifConnector {
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
   private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.\\-]+):(\\d+)");
   private static final long pingInterval = 2 * 60000000000L; // minutes
-  private long lastMessageSentTime;
-  private Thread pingThread;
   private final DocumentBuilder documentBuilder;
   private final Skype skype;
   private final String username, password;
+  private long lastMessageSentTime;
+  private Thread pingThread;
   private boolean disconnectRequested = false;
   private Socket socket;
   private BufferedWriter writer;
@@ -71,7 +47,6 @@ class NotifConnector {
   private int sequenceNumber;
   private String registration;
   private CountDownLatch connectLatch = new CountDownLatch(1);
-
   public NotifConnector(Skype skype, String username, String password) {
     this.skype = skype;
     this.username = username;
@@ -82,6 +57,74 @@ class NotifConnector {
       // Should never happen, throw RE if it does
       throw new RuntimeException(e);
     }
+  }
+
+  private static String generateEPID() {
+    char[] hexCharacters = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    // EPID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    char[] EPIDchars = new char[36];
+    EPIDchars[8] = '-';
+    EPIDchars[13] = '-';
+    EPIDchars[18] = '-';
+    EPIDchars[23] = '-';
+    Random random = new Random();
+    for (int i = 0; i < 8; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 9; i < 13; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 14; i < 18; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 19; i < 23; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    for (int i = 24; i < 36; i++) {
+      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
+    }
+    String EPID = new String(EPIDchars);
+    logger.finest("Generated EPID: " + EPID);
+    return EPID;
+  }
+
+  private static String getPlaintext(String string) {
+    return Jsoup.parseBodyFragment(string).text();
+  }
+
+  private static String getSanitized(String raw) {
+    if (raw.isEmpty()) {
+      return raw;
+    }
+    StringBuilder sb = new StringBuilder(raw.length());
+    boolean crFlag = false;
+    for (int i = 0; i < raw.length(); i++) {
+      char c = raw.charAt(i);
+      if (c <= 0x1F || c >= 0x7F && c <= 0x9F) {
+        if (c == '\r') {
+          if (crFlag) {
+            sb.append('\r').append('\n');
+          }
+          crFlag = true;
+        } else if (c == '\n') {
+          sb.append('\r').append('\n');
+          crFlag = false;
+        } else if (crFlag) {
+          sb.append('\r').append('\n');
+          crFlag = false;
+        }
+      } else {
+        if (crFlag) {
+          sb.append('\r').append('\n');
+        }
+        crFlag = false;
+        sb.append(c);
+      }
+    }
+    if (crFlag) {
+      sb.append('\r').append('\n');
+    }
+    return sb.toString();
   }
 
   private void processPacket(Packet packet) throws IOException {
@@ -317,7 +360,7 @@ class NotifConnector {
         }
         String formattedPublicationBody = String.format(
             "<user><s n=\"IM\"><Status>%s</Status></s><sep n=\"IM\" epid=\"{%s}\"><Capabilities>0:4194560</Capabilities></sep><s n=\"SKP\"><Mood/><Skypename>%s</Skypename></s><sep n=\"SKP\" epid=\"{%s}\"><Version>.</Version><Seamless>true</Seamless></sep></user>",
-            skype.getSelf().getPresence().getPresenceString(), EPID, EPID, username, EPID);
+                skype.getSelf().getPresence().getPresenceString(), EPID, username, EPID);
         String formattedPublicationMessage = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", "8:" + username, "Publication: 1.0",
             formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
         sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
@@ -377,7 +420,7 @@ class NotifConnector {
         if (character == '\n') {
           break;
         }
-        ParseException e = new ParseException("Received \\r without \\n in: " + firstLineBuilder.toString());
+        ParseException e = new ParseException("Received \\r without \\n in: " + firstLineBuilder);
         logger.log(Level.SEVERE, "", e);
         throw e;
       }
@@ -443,6 +486,7 @@ class NotifConnector {
 
   public void connect() throws IOException, InterruptedException {
     logger.finer("Starting notification connector");
+    disconnectRequested = false;
     lastMessageSentTime = System.nanoTime();
     connectTo(DEFAULT_SERVER_HOSTNAME, DEFAULT_SERVER_PORT);
     new Thread(() -> {
@@ -481,12 +525,12 @@ class NotifConnector {
         }
         try {
           Thread.sleep(pingInterval / 1000000);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException ignore) {
           return;
         }
       }
     }, "Skype-Ping-Thread");
-    logger.finest("Ping interval: " + (pingInterval / 1000000) + "ms");
+    logger.finest("Ping interval: " + pingInterval / 1000000 + "ms");
 
     logger.finer("Waiting for connection");
     connectLatch.await(); // block until connected
@@ -527,7 +571,7 @@ class NotifConnector {
   }
 
   public void changePresence(Presence presence) throws IOException {
-    String formattedPublicationBody = String.format("<user><s n=\"IM\"><Status>" + presence.getPresenceString() + "</Status></s></user>");
+    String formattedPublicationBody = String.format("<user><s n=\"IM\"><Status>%s</Status></s></user>", presence.getPresenceString());
     String formattedPublicationMessage = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", "8:" + username, "Publication: 1.0",
         formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
     sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
@@ -694,71 +738,22 @@ class NotifConnector {
     return fields.get(0);
   }
 
-  private static String generateEPID() {
-    char[] hexCharacters = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    // EPID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-    char[] EPIDchars = new char[36];
-    EPIDchars[8] = '-';
-    EPIDchars[13] = '-';
-    EPIDchars[18] = '-';
-    EPIDchars[23] = '-';
-    Random random = new Random();
-    for (int i = 0; i < 8; i++) {
-      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
-    }
-    for (int i = 9; i < 13; i++) {
-      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
-    }
-    for (int i = 14; i < 18; i++) {
-      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
-    }
-    for (int i = 19; i < 23; i++) {
-      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
-    }
-    for (int i = 24; i < 36; i++) {
-      EPIDchars[i] = hexCharacters[random.nextInt(hexCharacters.length)];
-    }
-    String EPID = new String(EPIDchars);
-    logger.finest("Generated EPID: " + EPID);
-    return EPID;
-  }
+  private static class Packet {
+    public final String command;
+    public final String params;
+    public final String body;
 
-  private static String getPlaintext(String string) {
-    return Jsoup.parseBodyFragment(string).text();
-  }
+    public Packet(String command, String params, String body) {
+      this.command = command;
+      this.params = params;
+      this.body = body;
+    }
 
-  private static String getSanitized(String raw) {
-    if (raw.isEmpty())
-      return raw;
-    StringBuilder sb = new StringBuilder(raw.length());
-    boolean crFlag = false;
-    for (int i = 0; i < raw.length(); i++) {
-      char c = raw.charAt(i);
-      if (c <= 0x1F || (c >= 0x7F && c <= 0x9F)) {
-        if (c == '\r') {
-          if (crFlag) {
-            sb.append('\r').append('\n');
-          }
-          crFlag = true;
-        } else if (c == '\n') {
-          sb.append('\r').append('\n');
-          crFlag = false;
-        } else if (crFlag) {
-          sb.append('\r').append('\n');
-          crFlag = false;
-        }
-      } else {
-        if (crFlag) {
-          sb.append('\r').append('\n');
-        }
-        crFlag = false;
-        sb.append(c);
-      }
+    @Override
+    public String toString() {
+      return String.format("Command: %s Params: %s Body: %s", command, params, body);
     }
-    if (crFlag) {
-      sb.append('\r').append('\n');
-    }
-    return sb.toString();
+
   }
 
 }

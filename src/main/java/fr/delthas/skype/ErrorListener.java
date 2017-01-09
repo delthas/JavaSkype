@@ -6,6 +6,7 @@ import java.io.IOException;
  * An IO exception listener for the Skype interface.
  *
  */
+@FunctionalInterface
 public interface ErrorListener {
 
   /**
@@ -15,6 +16,6 @@ public interface ErrorListener {
    *
    * @param e The error thrown by the Skype interface.
    */
-  public void error(IOException e);
+  void error(IOException e);
 
 }

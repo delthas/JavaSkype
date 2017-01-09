@@ -13,15 +13,10 @@ public enum Role {
    * A regular user: can add users, change the topic, and remove himself from the group.
    */
   USER("user");
+  private final String roleString;
 
-  private Role(String roleString) {
+  Role(String roleString) {
     this.roleString = roleString;
-  }
-
-  private String roleString;
-
-  String getRoleString() {
-    return roleString;
   }
 
   static Role getRole(String roleString) {
@@ -31,6 +26,10 @@ public enum Role {
       }
     }
     throw new IllegalArgumentException("Unknown role string: " + roleString);
+  }
+
+  String getRoleString() {
+    return roleString;
   }
 
 }

@@ -1,11 +1,9 @@
 package fr.delthas.skype;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -14,12 +12,7 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.Key;
-import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
+import java.security.*;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.spec.RSAPublicKeySpec;
@@ -30,12 +23,8 @@ import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-
 @SuppressWarnings({"unchecked", "rawtypes"})
-class UicConnector {
+final class UicConnector {
 
   private static final Logger logger = Logger.getLogger("fr.delthas.skype.uic");
   private static final Random random = new Random();
@@ -134,6 +123,11 @@ class UicConnector {
 
     // ugly reflection hack end
 
+  }
+
+  private UicConnector() {
+    // prevent instantiation
+    throw new IllegalStateException("This class cannot be instantiated");
   }
 
   @SuppressWarnings({"resource", "null"})
@@ -306,7 +300,7 @@ class UicConnector {
 
     int crc = -1;
     for (int i = 0; i < encrypted.length; i++) {
-      crc = crc32_tab[(crc ^ encrypted[i]) & 0xFF] ^ (crc >>> 8);
+      crc = crc32_tab[(crc ^ encrypted[i]) & 0xFF] ^ crc >>> 8;
     }
 
     dos.writeByte((byte) crc);
@@ -406,7 +400,7 @@ class UicConnector {
     challengeEncrypted[0] = (byte) (signedCredentials.length >> 24);
     challengeEncrypted[1] = (byte) (signedCredentials.length >> 16);
     challengeEncrypted[2] = (byte) (signedCredentials.length >> 8);
-    challengeEncrypted[3] = (byte) (signedCredentials.length);
+    challengeEncrypted[3] = (byte) signedCredentials.length;
 
     System.arraycopy(signedCredentials, 0, challengeEncrypted, 4, signedCredentials.length);
 
@@ -420,7 +414,7 @@ class UicConnector {
     return uic;
   }
 
-  private static final int readValue(byte[] bytes, int[] position) {
+  private static int readValue(byte[] bytes, int[] position) {
     int result;
     int a;
     for (a = 0, result = 0; a == 0 || (bytes[position[0] - 1] & 0x80) != 0; a += 7, position[0]++) {
@@ -429,10 +423,10 @@ class UicConnector {
     return result;
   }
 
-  private static final void writeValue(DataOutputStream dos, int value) throws IOException {
+  private static void writeValue(DataOutputStream dos, int value) throws IOException {
     int a;
     for (a = value; a > 0x7F; a >>>= 7) {
-      dos.writeByte((a & 0x7F) | 0x80);
+      dos.writeByte(a & 0x7F | 0x80);
     }
     dos.writeByte(a & 0x7F);
   }

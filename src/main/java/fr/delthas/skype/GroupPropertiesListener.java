@@ -14,7 +14,7 @@ public interface GroupPropertiesListener {
    * @param group The group in which the users have been added.
    * @param users The users which have been added.
    */
-  public void usersAdded(Group group, List<User> users);
+  void usersAdded(Group group, List<User> users);
 
   /**
    * Called when users are removed from a group the Skype account is in while it is connected.
@@ -22,7 +22,7 @@ public interface GroupPropertiesListener {
    * @param group The group from which the user has been removed.
    * @param users The user which have been removed.
    */
-  public void usersRemoved(Group group, List<User> users);
+  void usersRemoved(Group group, List<User> users);
 
   /**
    * Called when the topic of a group is changed.
@@ -30,7 +30,7 @@ public interface GroupPropertiesListener {
    * @param group The group whose topic has been changed.
    * @param topic The new topic of the group.
    */
-  public void topicChanged(Group group, String topic);
+  void topicChanged(Group group, String topic);
 
   /**
    * Called when some users roles are changed in a group the Skype account is in while it is connected.
@@ -38,6 +38,6 @@ public interface GroupPropertiesListener {
    * @param group The group in which some users roles have changed.
    * @param newRoles The list of the new roles of the users whose roles have changed.
    */
-  public void usersRolesChanged(Group group, List<Pair<User, Role>> newRoles);
+  void usersRolesChanged(Group group, List<Pair<User, Role>> newRoles);
 
 }
