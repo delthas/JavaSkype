@@ -184,7 +184,7 @@ class WebConnector {
 
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
     String url = absoluteApiPath ? apiPath : SERVER_HOSTNAME + apiPath;
-    Connection conn = Jsoup.connect(url).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
+    Connection conn = Jsoup.connect(url).maxBodySize(100 * 1024 * 1024).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
     logger.finest("Sending " + method + " request at " + url);
     if (skypeToken != null) {
       conn.header("X-Skypetoken", skypeToken);
