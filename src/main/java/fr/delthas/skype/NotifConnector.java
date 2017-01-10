@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
@@ -226,6 +227,9 @@ class NotifConnector {
           }
           Object sender = parseEntity(formatted.sender);
           Object receiver = parseEntity(formatted.receiver);
+          if (sender == null || receiver == null) {
+            break;
+          }
           switch (messageType) {
             case "Text":
             case "RichText":
@@ -241,11 +245,11 @@ class NotifConnector {
               break;
             case "ThreadActivity/AddMember":
               List<String> usernames = getXMLFields(formatted.body, "target");
-              skype.usersAddedToGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+              skype.usersAddedToGroup(usernames.stream().map(username -> parseEntity(username)).filter(Objects::nonNull).map(u -> (User) u).collect(Collectors.toList()), (Group) sender);
               break;
             case "ThreadActivity/DeleteMember":
               usernames = getXMLFields(formatted.body, "target");
-              skype.usersRemovedFromGroup(usernames.stream().map(username -> (User) parseEntity(username)).collect(Collectors.toList()), (Group) sender);
+              skype.usersRemovedFromGroup(usernames.stream().map(username -> parseEntity(username)).filter(Objects::nonNull).map(u -> (User) u).collect(Collectors.toList()), (Group) sender);
               break;
             case "ThreadActivity/TopicUpdate":
               skype.groupTopicChanged((Group) sender, getPlaintext(getXMLField(formatted.body, "value")));
@@ -254,6 +258,7 @@ class NotifConnector {
               Document doc = getDocument(formatted.body);
               NodeList targetNodes = doc.getElementsByTagName("target");
               List<Pair<User, Role>> roles = new ArrayList<>(targetNodes.getLength());
+              outer:
               for (int i = 0; i < targetNodes.getLength(); i++) {
                 Node targetNode = targetNodes.item(i);
                 User user = null;
@@ -261,7 +266,11 @@ class NotifConnector {
                 for (int j = 0; j < targetNode.getChildNodes().getLength(); j++) {
                   Node targetPropertyNode = targetNode.getChildNodes().item(j);
                   if (targetPropertyNode.getNodeName().equals("id")) {
-                    user = (User) parseEntity(targetPropertyNode.getTextContent());
+                    Object parseUser = parseEntity(targetPropertyNode.getTextContent());
+                    if (parseUser == null) {
+                      continue outer;
+                    }
+                    user = (User) parseUser;
                     skype.updateUser(user);
                   } else if (targetPropertyNode.getNodeName().equals("role")) {
                     role = Role.getRole(targetPropertyNode.getTextContent());
@@ -282,11 +291,19 @@ class NotifConnector {
         switch (packet.params) {
           case "MSGR\\DEL":
             FormattedMessage formatted = FormattedMessage.parseMessage(packet.body);
-            ((User) parseEntity(formatted.sender)).setPresence(Presence.OFFLINE);
+            Object parseUser = parseEntity(formatted.sender);
+            if (parseUser == null) {
+              break;
+            }
+            ((User) parseUser).setPresence(Presence.OFFLINE);
             break;
           case "MSGR\\PUT":
             formatted = FormattedMessage.parseMessage(packet.body);
-            User user = (User) parseEntity(formatted.sender);
+            parseUser = parseEntity(formatted.sender);
+            if (parseUser == null) {
+              break;
+            }
+            User user = (User) parseUser;
             String presenceString = getXMLField(formatted.body, "Status");
             if (presenceString == null) {
               // happens when a user switches from offline to "hidden"
@@ -654,6 +671,7 @@ class NotifConnector {
       return;
     }
     List<Pair<User, Role>> users = new ArrayList<>(members.getChildNodes().getLength());
+    outer:
     for (int i = 0; i < members.getChildNodes().getLength(); i++) {
       Node memberNode = members.getChildNodes().item(i);
       if (!memberNode.getNodeName().equals("member")) {
@@ -664,7 +682,11 @@ class NotifConnector {
       for (int j = 0; j < memberNode.getChildNodes().getLength(); j++) {
         Node memberPropertyNode = memberNode.getChildNodes().item(j);
         if (memberPropertyNode.getNodeName().equals("mri")) {
-          user = (User) parseEntity(memberPropertyNode.getTextContent());
+          Object parseUser = parseEntity(memberPropertyNode.getTextContent());
+          if (parseUser == null) {
+            continue outer;
+          }
+          user = (User) parseUser;
           skype.updateUser(user);
         } else if (memberPropertyNode.getNodeName().equals("role")) {
           role = Role.getRole(memberPropertyNode.getTextContent());
@@ -702,6 +724,8 @@ class NotifConnector {
       return skype.getUser(name);
     } else if (network == 19) {
       return skype.getGroup(name);
+    } else if (network == 4) {
+      return null;
     } else {
       logger.warning("Error while parsing entity " + rawEntity + ": unknown network:" + network);
       throw new IllegalArgumentException();

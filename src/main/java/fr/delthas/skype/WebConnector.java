@@ -90,7 +90,7 @@ class WebConnector {
       JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
       for (int i = 0; i < profilesJSON.length(); i++) {
         User user = updateUser(profilesJSON.getJSONObject(i), true);
-        if (!user.getUsername().equalsIgnoreCase("echo123"))
+        if (user != null && !user.getUsername().equalsIgnoreCase("echo123"))
           skype.addContact(user.getUsername());
       }
     } catch (JSONException e) {
@@ -116,6 +116,11 @@ class WebConnector {
         userCity = userJSON.optString("city", null);
         userDisplayName = userJSON.optString("displayname", null);
       } else {
+        String type = userJSON.getString("type");
+        if (!type.equalsIgnoreCase("skype")) {
+          System.out.println("ignored " + type);
+          return null;
+        }
         userUsername = userJSON.getString("id");
         userDisplayName = userJSON.optString("display_name", null);
         JSONObject nameJSON = userJSON.getJSONObject("name");
