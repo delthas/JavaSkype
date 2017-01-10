@@ -1,5 +1,10 @@
 package fr.delthas.skype;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * A Skype account.
@@ -17,6 +22,7 @@ public class User {
   private String country;
   private String city;
   private String displayName;
+  private String authKey;
   private Presence presence = Presence.OFFLINE;
 
   User(Skype skype, String username) {
@@ -89,6 +95,13 @@ public class User {
     return username;
   }
 
+  void setDisplayName(String displayName) {
+    if (displayName == null || displayName.isEmpty()) {
+      return;
+    }
+    this.displayName = displayName;
+  }
+
   /**
    * @return The first name of this user, or null if not visible.
    */
@@ -110,11 +123,25 @@ public class User {
     return mood;
   }
 
+  void setMood(String mood) {
+    if (mood == null || mood.isEmpty()) {
+      return;
+    }
+    this.mood = mood;
+  }
+
   /**
    * @return Two letters identifying this user's country (e.g. us), or null if not visible.
    */
   public String getCountry() {
     return country;
+  }
+
+  void setCountry(String country) {
+    if (country == null || country.isEmpty()) {
+      return;
+    }
+    this.country = country;
   }
 
   /**
@@ -124,11 +151,56 @@ public class User {
     return city;
   }
 
+  void setCity(String city) {
+    if (city == null || city.isEmpty()) {
+      return;
+    }
+    this.city = city;
+  }
+
+  String getAuthKey() {
+    return authKey;
+  }
+
+  void setAuthKey(String authKey) {
+    if (authKey == null || authKey.isEmpty()) {
+      return;
+    }
+    this.authKey = authKey;
+  }
+
   /**
+   * Fetches and returns the avatar of the user, or null if the avatar is not visible.
+   * <p>
+   * The avatar is the data of a jpeg (compressed) image that can be transformed into a Image by several methods such as {@link java.awt.Toolkit#createImage(byte[])}, {@link ImageIO#read(InputStream)}, {@link javax.swing.ImageIcon#ImageIcon(byte[])}.
+   * <p>
+   * Use {@link #getAvatarImage()} to get a {@link BufferedImage} directly (uses {@link ImageIO} internally).
+   *
    * @return The avatar (account picture) of this user, as a byte array, or null if not visible.
+   * @see #getAvatarImage()
    */
   public byte[] getAvatar() {
     return skype.getAvatar(this);
+  }
+
+  /**
+   * Fetches and returns the avatar of the user as a {@link BufferedImage}, or null if the avatar is not visible.
+   * <p>
+   * This simply calls {@link #getAvatar()} and parses it as a {@link BufferedImage} with {@link ImageIO#read(InputStream)}.
+   *
+   * @return The avatar (account picture) of this user, or null if not visible or if there's an image parsing error.
+   * @see #getAvatar()
+   */
+  public BufferedImage getAvatarImage() {
+    byte[] bytes = getAvatar();
+    if (bytes == null) {
+      return null;
+    }
+    try (ByteArrayInputStream is = new ByteArrayInputStream(bytes)) {
+      return ImageIO.read(is);
+    } catch (IOException ignore) {
+      return null;
+    }
   }
 
   /**
@@ -137,6 +209,10 @@ public class User {
    */
   public Presence getPresence() {
     return presence;
+  }
+
+  void setPresence(Presence presence) {
+    setPresence(presence, true);
   }
 
   void setFirstName(String firstname) {
@@ -151,36 +227,8 @@ public class User {
     this.lastname = lastname;
   }
 
-  void setMood(String mood) {
-    if (mood == null || mood.isEmpty())
-      return;
-    this.mood = mood;
-  }
-
-  void setCountry(String country) {
-    if (country == null || country.isEmpty())
-      return;
-    this.country = country;
-  }
-
-  void setCity(String city) {
-    if (city == null || city.isEmpty())
-      return;
-    this.city = city;
-  }
-
-  void setDisplayName(String displayName) {
-    if (displayName == null || displayName.isEmpty())
-      return;
-    this.displayName = displayName;
-  }
-
   void setPresence(String presenceString) {
     setPresence(Presence.getPresence(presenceString), true);
-  }
-
-  void setPresence(Presence presence) {
-    setPresence(presence, true);
   }
 
   void setPresence(Presence presence, boolean triggerListeners) {

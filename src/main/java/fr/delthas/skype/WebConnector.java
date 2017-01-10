@@ -37,6 +37,40 @@ class WebConnector {
     return Jsoup.parseBodyFragment(string).text();
   }
 
+  private static String getUrlParam(String param, String url) {
+    if (url == null) {
+      return null;
+    }
+    int paramStart = url.indexOf('?');
+    if (paramStart == -1) {
+      return null;
+    }
+    int start = -1;
+    int current = paramStart + 1;
+    for (current = paramStart + 1; current < url.length(); current++) {
+      current = url.indexOf(param, current);
+      if (current == -1) {
+        return null;
+      }
+      if (url.charAt(current - 1) != '?' && url.charAt(current - 1) != '&') {
+        continue;
+      }
+      start = current;
+      break;
+    }
+    if (start == -1) {
+      return null;
+    }
+    if (url.charAt(start + param.length()) != '=') {
+      return null;
+    }
+    int end = url.indexOf('&', start);
+    if (end == -1) {
+      end = url.length();
+    }
+    return url.substring(start + param.length() + 1, end);
+  }
+
   public void start() throws IOException {
     logger.finer("Starting web connector");
     generateTokens();
@@ -68,7 +102,7 @@ class WebConnector {
   }
 
   public byte[] getAvatar(User user) throws IOException {
-    return sendRequest(Method.GET, "/users/" + user.getUsername() + "/profile/avatar").bodyAsBytes();
+    return sendRequest(Method.GET, "https://avatar.skype.com/v1/avatars/" + user.getUsername() + "?auth_key=" + (user.getAuthKey() == null ? "" : user.getAuthKey()), true).bodyAsBytes();
   }
 
   public void updateUser(User user) throws IOException {
@@ -106,6 +140,7 @@ class WebConnector {
     String userCountry = null;
     String userCity = null;
     String userDisplayName = null;
+    String userAvatarUrl = null;
     try {
       if (!newContactType) {
         userUsername = userJSON.getString("username");
@@ -115,10 +150,10 @@ class WebConnector {
         userCountry = userJSON.optString("country", null);
         userCity = userJSON.optString("city", null);
         userDisplayName = userJSON.optString("displayname", null);
+        userAvatarUrl = userJSON.optString("avatar_url");
       } else {
         String type = userJSON.getString("type");
         if (!type.equalsIgnoreCase("skype")) {
-          System.out.println("ignored " + type);
           return null;
         }
         userUsername = userJSON.getString("id");
@@ -134,6 +169,7 @@ class WebConnector {
             userCity = locationJSON.optString("city", null);
           }
         }
+        userAvatarUrl = userJSON.optString("avatar_url");
       }
     } catch (JSONException e) {
       throw new ParseException(e);
@@ -145,6 +181,7 @@ class WebConnector {
     user.setFirstName(getPlaintext(userFirstName));
     user.setLastName(getPlaintext(userLastName));
     user.setMood(getPlaintext(userMood));
+    user.setAuthKey(getUrlParam("auth_key", userAvatarUrl));
     return user;
   }
 
