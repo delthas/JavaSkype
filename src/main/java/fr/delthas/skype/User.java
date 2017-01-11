@@ -10,10 +10,8 @@ import java.io.InputStream;
  * A Skype account.
  * <p>
  * All information will be updated as updates are received (this object <b>is NOT</b> an immutable view/snapshot of a user account).
- *
  */
 public class User {
-
   private final Skype skype;
   private final String username;
   private String firstname;
@@ -22,7 +20,7 @@ public class User {
   private String country;
   private String city;
   private String displayName;
-  private String authKey;
+  private String avatarUrl;
   private Presence presence = Presence.OFFLINE;
 
   User(Skype skype, String username) {
@@ -32,7 +30,6 @@ public class User {
 
   /**
    * Blocks this user (without reporting the account).
-   *
    */
   public void block() {
     skype.block(this);
@@ -40,7 +37,6 @@ public class User {
 
   /**
    * Unblocks this user.
-   *
    */
   public void unblock() {
     skype.unblock(this);
@@ -57,7 +53,6 @@ public class User {
 
   /**
    * Removes this user from the list of contacts of the Skype account. If the user isn't a contact, nothing happens.
-   *
    */
   public void removeFromContacts() {
     skype.removeFromContacts(this);
@@ -158,17 +153,6 @@ public class User {
     this.city = city;
   }
 
-  String getAuthKey() {
-    return authKey;
-  }
-
-  void setAuthKey(String authKey) {
-    if (authKey == null || authKey.isEmpty()) {
-      return;
-    }
-    this.authKey = authKey;
-  }
-
   /**
    * Fetches and returns the avatar of the user, or null if the avatar is not visible.
    * <p>
@@ -204,6 +188,26 @@ public class User {
   }
 
   /**
+   * Returns an URL (http/https) to fetch the avatar of this user (with a GET request), or null if it is not visible.
+   * <p>
+   * The server will respond with a 200 response if the avatar is visible, with the bytes of a jpeg image in it. <b>Sometimes, in very rare cases, the URL will not be null, but the server will respond with a 403 error code. This will always happen for the same accounts but is very rare.</b>
+   *
+   * @return The url for the avatar (account picture) of this user, or null if not visible from this account with an URL.
+   * @see #getAvatar()
+   * @see #getAvatarImage()
+   */
+  public String getAvatarUrl() {
+    return avatarUrl;
+  }
+
+  void setAvatarUrl(String avatarUrl) {
+    if (avatarUrl == null || avatarUrl.isEmpty()) {
+      return;
+    }
+    this.avatarUrl = avatarUrl;
+  }
+
+  /**
    * @return The presence of this user
    * @see Presence
    */
@@ -211,24 +215,26 @@ public class User {
     return presence;
   }
 
+  void setPresence(String presenceString) {
+    setPresence(Presence.getPresence(presenceString), true);
+  }
+
   void setPresence(Presence presence) {
     setPresence(presence, true);
   }
 
   void setFirstName(String firstname) {
-    if (firstname == null || firstname.isEmpty())
+    if (firstname == null || firstname.isEmpty()) {
       return;
+    }
     this.firstname = firstname;
   }
 
   void setLastName(String lastname) {
-    if (lastname == null || lastname.isEmpty())
+    if (lastname == null || lastname.isEmpty()) {
       return;
+    }
     this.lastname = lastname;
-  }
-
-  void setPresence(String presenceString) {
-    setPresence(Presence.getPresence(presenceString), true);
   }
 
   void setPresence(Presence presence, boolean triggerListeners) {
@@ -275,5 +281,4 @@ public class User {
   public String toString() {
     return "User: " + getUsername();
   }
-
 }

@@ -2,19 +2,8 @@ package fr.delthas.skype;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.logging.FileHandler;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
+import java.util.*;
+import java.util.logging.*;
 import java.util.stream.Collectors;
 
 /**
@@ -33,27 +22,6 @@ public final class Skype {
 
   private static final Logger logger = Logger.getLogger("fr.delthas.skype");
 
-  private final String username;
-  private final String password;
-
-  private List<UserMessageListener> userMessageListeners = new LinkedList<>();
-  private List<GroupMessageListener> groupMessageListeners = new LinkedList<>();
-  private List<UserPresenceListener> userPresenceListeners = new LinkedList<>();
-  private List<GroupPropertiesListener> groupPropertiesListeners = new LinkedList<>();
-  private ErrorListener errorListener;
-
-  private NotifConnector notifConnector;
-  private WebConnector webConnector;
-
-  private Map<String, Group> groups;
-  private Set<User> contacts;
-  private Map<String, User> users;
-  private List<ContactRequest> contactRequests;
-
-  private boolean connected = false;
-  private boolean connecting = false;
-  private IOException exceptionDuringConnection;
-
   static {
     try {
       setDebug(null);
@@ -61,6 +29,23 @@ public final class Skype {
       // will not throw
     }
   }
+
+  private final String username;
+  private final String password;
+  private List<UserMessageListener> userMessageListeners = new LinkedList<>();
+  private List<GroupMessageListener> groupMessageListeners = new LinkedList<>();
+  private List<UserPresenceListener> userPresenceListeners = new LinkedList<>();
+  private List<GroupPropertiesListener> groupPropertiesListeners = new LinkedList<>();
+  private ErrorListener errorListener;
+  private NotifConnector notifConnector;
+  private WebConnector webConnector;
+  private Map<String, Group> groups;
+  private Set<User> contacts;
+  private Map<String, User> users;
+  private List<ContactRequest> contactRequests;
+  private boolean connected = false;
+  private boolean connecting = false;
+  private IOException exceptionDuringConnection;
 
   // --- Public API (except listeners add/remove methods) --- //
 
@@ -76,6 +61,30 @@ public final class Skype {
   }
 
   /**
+   * Enables or disables debug of the Skype library (globally). (By default logs are <b>disabled</b>.)
+   * <p>
+   * If enabled, debug information and logs will be written to a log file at the specified path. If the path is null, the debug will be disabled.
+   *
+   * @param path The path at which to write debugging information, or null to disable logging.
+   * @throws IOException may be thrown when adding a file handler to the logger
+   */
+  public static void setDebug(Path path) throws IOException {
+    if (path == null) {
+      logger.setLevel(Level.OFF);
+    } else {
+      logger.setLevel(Level.ALL);
+      logger.setUseParentHandlers(false);
+      for (Handler handler : logger.getHandlers()) {
+        logger.removeHandler(handler);
+        handler.close();
+      }
+      FileHandler fh = new FileHandler(path.toString(), false);
+      fh.setFormatter(new SimpleFormatter());
+      logger.addHandler(fh);
+    }
+  }
+
+  /**
    * Calls {@code connect(Presence.CONNECTED)}.
    *
    * @throws IOException If an error is thrown while connecting.
@@ -86,7 +95,6 @@ public final class Skype {
   public void connect() throws IOException, InterruptedException {
     connect(Presence.ONLINE);
   }
-
 
   /**
    * Connects the Skype interface. Will block until connected.
@@ -144,7 +152,6 @@ public final class Skype {
     }
     reset();
   }
-
 
   /**
    * @return The current list of contact requests to this Skype account (snapshot, won't be updated).
@@ -205,31 +212,6 @@ public final class Skype {
    */
   public boolean isConnected() {
     return connected;
-  }
-
-  /**
-   * Enables or disables debug of the Skype library (globally). (By default logs are <b>disabled</b>.)
-   * <p>
-   * If enabled, debug information and logs will be written to a log file at the specified path. If the path is null, the debug will be disabled.
-   * 
-   * @param path The path at which to write debugging information, or null to disable logging.
-   * 
-   * @throws IOException may be thrown when adding a file handler to the logger
-   */
-  public static void setDebug(Path path) throws IOException {
-    if (path == null) {
-      logger.setLevel(Level.OFF);
-    } else {
-      logger.setLevel(Level.ALL);
-      logger.setUseParentHandlers(false);
-      for (Handler handler : logger.getHandlers()) {
-        logger.removeHandler(handler);
-        handler.close();
-      }
-      FileHandler fh = new FileHandler(path.toString(), false);
-      fh.setFormatter(new SimpleFormatter());
-      logger.addHandler(fh);
-    }
   }
 
   // --- Package-private methods --- //
