@@ -116,7 +116,7 @@ class WebConnector {
         userCountry = userJSON.optString("country", null);
         userCity = userJSON.optString("city", null);
         userDisplayName = userJSON.optString("displayname", null);
-        userAvatarUrl = userJSON.optString("avatar_url");
+        userAvatarUrl = userJSON.optString("avatarUrl");
       } else {
         String type = userJSON.getString("type");
         if (!type.equalsIgnoreCase("skype")) {

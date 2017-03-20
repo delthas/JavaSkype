@@ -279,7 +279,7 @@ final class UicConnector {
 
     writeValue(sink, 0x03);
     writeValue(sink, 0x0D);
-    sink.write("0/6.18.0.105".getBytes(StandardCharsets.UTF_8));
+    sink.write("0/7.44.0.104".getBytes(StandardCharsets.UTF_8));
     sink.writeByte(0x00);
 
     writeValue(sink, 0x00);
