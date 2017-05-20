@@ -645,7 +645,7 @@ class NotifConnector {
     writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
     inputStream = new BufferedInputStream(socket.getInputStream());
     sequenceNumber = 0;
-    sendPacket("CNT", "CON", "<connect><ver>2</ver><agent><os>.</os><osVer>.</osVer><proc>.</proc><lcid>en-us</lcid></agent></connect>");
+    sendPacket("CNT", "CON", "<connect><ver>2</ver><agent><os>winnt</os><osVer>5.2</osVer><proc>x86</proc><lcid>en-us</lcid></agent></connect>");
   }
 
   private void updateThread(Node threadNode) {
