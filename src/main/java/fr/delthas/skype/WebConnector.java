@@ -83,9 +83,8 @@ class WebConnector {
     JSONObject selfJSON = new JSONObject(selfResponse);
     updateUser(selfJSON, false);
 
-    String filterString = "authorized eq true and blocked eq false and suggested eq false";
     String profilesResponse =
-        sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + username + "/contacts?$filter=" + filterString, true).body();
+        sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + username + "/contacts", true).body();
     try {
       JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
       for (int i = 0; i < profilesJSON.length(); i++) {
