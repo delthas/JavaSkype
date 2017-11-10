@@ -17,87 +17,93 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 class WebConnector {
-
   private static final Logger logger = Logger.getLogger("fr.delthas.skype.web");
   private static final String SERVER_HOSTNAME = "https://api.skype.com";
   private final Skype skype;
   private final String username, password;
   private String skypeToken;
-
+  private boolean updated = false;
+  
   public WebConnector(Skype skype, String username, String password) {
     this.skype = skype;
     this.username = username;
     this.password = password;
   }
-
+  
   private static String getPlaintext(String string) {
     if (string == null) {
       return null;
     }
     return Jsoup.parseBodyFragment(string).text();
   }
-
-  public void start() throws IOException {
-    logger.finer("Starting web connector");
-    generateTokens();
+  
+  public synchronized long refreshTokens(String token) throws IOException {
+    logger.finer("Refreshing tokens");
+    long expire = generateToken(token);
     updateContacts();
+    return expire;
   }
-
+  
   public void block(User user) throws IOException {
     sendRequest(Method.PUT, "/users/self/contacts/" + user.getUsername() + "/block", "reporterIp", "127.0.0.1");
   }
-
+  
   public void unblock(User user) throws IOException {
     sendRequest(Method.PUT, "/users/self/contacts/" + user.getUsername() + "/unblock");
   }
-
+  
   public void sendContactRequest(User user, String greeting) throws IOException {
     sendRequest(Method.PUT, "/users/self/contacts/auth-request/" + user.getUsername(), "greeting", greeting);
   }
-
+  
   public void acceptContactRequest(ContactRequest contactRequest) throws IOException {
     sendRequest(Method.PUT, "/users/self/contacts/auth-request/" + contactRequest.getUser().getUsername() + "/accept");
   }
-
+  
   public void declineContactRequest(ContactRequest contactRequest) throws IOException {
     sendRequest(Method.PUT, "/users/self/contacts/auth-request/" + contactRequest.getUser().getUsername() + "/decline");
   }
-
+  
   public void removeFromContacts(User user) throws IOException {
     sendRequest(Method.DELETE, "/users/self/contacts/" + user.getUsername());
   }
-
+  
   public byte[] getAvatar(User user) throws IOException {
     return sendRequest(Method.GET, user.getAvatarUrl(), true).bodyAsBytes();
   }
-
+  
   public void updateUser(User user) throws IOException {
     String reponse = sendRequest(Method.GET, "/users/" + user.getUsername() + "/profile/public", "clientVersion", "0/7.12.0.101/").body();
     JSONObject userJSON = new JSONObject(reponse);
     userJSON.put("username", user.getUsername());
     updateUser(userJSON, false);
   }
-
+  
   private void updateContacts() throws IOException {
+    if (updated) {
+      return;
+    }
+    updated = true;
     String selfResponse = sendRequest(Method.GET, "/users/self/profile").body();
     JSONObject selfJSON = new JSONObject(selfResponse);
     updateUser(selfJSON, false);
-
+    
     String filterString = "authorized eq true and blocked eq false and suggested eq false";
     String profilesResponse =
-        sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + username + "/contacts?$filter=" + filterString, true).body();
+            sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + getSelfLiveUsername() + "/contacts?$filter=" + filterString, true).body();
     try {
       JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
       for (int i = 0; i < profilesJSON.length(); i++) {
         User user = updateUser(profilesJSON.getJSONObject(i), true);
-        if (user != null && !user.getUsername().equalsIgnoreCase("echo123"))
+        if (user != null && !user.getUsername().equalsIgnoreCase("echo123")) {
           skype.addContact(user.getUsername());
+        }
       }
     } catch (JSONException e) {
       throw new ParseException(e);
     }
   }
-
+  
   private User updateUser(JSONObject userJSON, boolean newContactType) throws ParseException {
     String userUsername;
     String userFirstName = null;
@@ -150,20 +156,26 @@ class WebConnector {
     user.setAvatarUrl(userAvatarUrl);
     return user;
   }
-
-  private void generateTokens() throws IOException {
-    MessageDigest md;
-    try {
-      md = MessageDigest.getInstance("MD5");
-    } catch (NoSuchAlgorithmException e) {
-      // md5 will always be available according to javadoc
-      throw new RuntimeException(e);
+  
+  private long generateToken(String token) throws IOException {
+    String response;
+    if (token == null) {
+      MessageDigest md;
+      try {
+        md = MessageDigest.getInstance("MD5");
+      } catch (NoSuchAlgorithmException e) {
+        // md5 will always be available according to javadoc
+        throw new RuntimeException(e);
+      }
+      byte[] md5hash = md.digest(String.format("%s\nskyper\n%s", username, password).getBytes(StandardCharsets.UTF_8));
+      String base64hash = Base64.getEncoder().encodeToString(md5hash);
+      logger.finest("Getting Skype token");
+      response = sendRequest(Method.POST, "/login/skypetoken", "scopes", "client", "clientVersion", "0/7.12.0.101/", "username", username,
+              "passwordHash", base64hash).body();
+    } else {
+      logger.finest("Getting Microsoft token");
+      response = sendRequest(Method.POST, "/rps/skypetoken", "scopes", "client", "clientVersion", "0/7.12.0.101/", "access_token", token, "partner", "999").body();
     }
-    byte[] md5hash = md.digest(String.format("%s\nskyper\n%s", username, password).getBytes(StandardCharsets.UTF_8));
-    String base64hash = Base64.getEncoder().encodeToString(md5hash);
-    logger.finest("Getting skype token");
-    String response = sendRequest(Method.POST, "/login/skypetoken", "scopes", "client", "clientVersion", "0/7.12.0.101/", "username", username,
-        "passwordHash", base64hash).body();
     try {
       JSONObject jsonResponse = new JSONObject(response);
       if (!jsonResponse.has("skypetoken")) {
@@ -178,13 +190,14 @@ class WebConnector {
         }
       }
       skypeToken = jsonResponse.getString("skypetoken");
+      return System.nanoTime() + jsonResponse.getInt("expiresIn") * 1000000000L;
     } catch (JSONException e_) {
       ParseException e = new ParseException("Error while parsing skypetoken response: " + response, e_);
       logger.log(Level.SEVERE, "", e);
       throw e;
     }
   }
-
+  
   private Response sendRequest(Method method, String apiPath, boolean absoluteApiPath, String... keyval) throws IOException {
     String url = absoluteApiPath ? apiPath : SERVER_HOSTNAME + apiPath;
     Connection conn = Jsoup.connect(url).maxBodySize(100 * 1024 * 1024).timeout(10000).method(method).ignoreContentType(true).ignoreHttpErrors(true);
@@ -197,9 +210,16 @@ class WebConnector {
     conn.data(keyval);
     return conn.execute();
   }
-
+  
   private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
     return sendRequest(method, apiPath, false, keyval);
   }
-
+  
+  private String getSelfLiveUsername() {
+    if (username.contains("@")) {
+      return "live:" + username.substring(0, username.indexOf('@'));
+    } else {
+      return username;
+    }
+  }
 }

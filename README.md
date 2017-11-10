@@ -1,5 +1,8 @@
 # JavaSkype
 
+## Recent changes
+- Now supports Microsoft accounts ([#24](https://github.com/Delthas/JavaSkype/issues/24))
+
 ## Introduction
 
 JavaSkype is a lightweight and comprehensive API for Skype, using the MSNP24 protocol, and Java 8.
@@ -22,7 +25,7 @@ JavaSkype requires Java >= 8 to run. You can get this library using Maven by add
     <dependency>       
            <groupId>fr.delthas</groupId>
            <artifactId>javaskype</artifactId>
-           <version>1.0.20</version>
+           <version>1.0.22</version>
     </dependency>
 </dependencies>
 ```

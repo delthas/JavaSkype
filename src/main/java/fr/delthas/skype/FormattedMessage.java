@@ -5,14 +5,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 final class FormattedMessage {
-
   private static final String PARSING_ERROR_MESSAGE = "Error while parsing formatted message";
   public final String sender;
   public final String receiver;
   public final String type;
   public final Map<String, String> headers;
   public final String body;
-
+  
   private FormattedMessage(String sender, String receiver, String type, Map<String, String> headers, String body) {
     this.sender = sender;
     this.receiver = receiver;
@@ -20,7 +19,7 @@ final class FormattedMessage {
     this.headers = headers;
     this.body = body;
   }
-
+  
   public static FormattedMessage parseMessage(String formattedMessage) {
     int firstBlockEnd = formattedMessage.indexOf("\r\n\r\n");
     if (firstBlockEnd == -1) {
@@ -42,7 +41,7 @@ final class FormattedMessage {
     if (from == null) {
       throw new IllegalArgumentException(PARSING_ERROR_MESSAGE);
     }
-
+    
     Map<String, String> headers = new HashMap<>();
     int headerStart = thirdBlockStart;
     while (headerStart < thirdBlockEnd) {
@@ -59,7 +58,7 @@ final class FormattedMessage {
     String body = formattedMessage.substring(thirdBlockEnd + "\r\n\r\n".length());
     return new FormattedMessage(from, to, headers.get("Message-Type"), headers, body);
   }
-
+  
   private static String extractValue(String string, String pre, String post, int min, int max) {
     int preIndex = string.indexOf(pre, min);
     if (preIndex == -1) {
@@ -71,7 +70,7 @@ final class FormattedMessage {
     }
     return string.substring(preIndex + pre.length(), postIndex);
   }
-
+  
   public static String format(String sender, String receiver, String type, String body, String... headers) {
     String routing = String.format("Routing: 1.0\r\nTo: %s\r\nFrom: %s\r\n", receiver, sender);
     String reliability = "Reliability: 1.0\r\n";

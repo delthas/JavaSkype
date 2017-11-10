@@ -4,11 +4,9 @@ import java.io.IOException;
 
 /**
  * An IO exception listener for the Skype interface.
- *
  */
 @FunctionalInterface
 public interface ErrorListener {
-
   /**
    * Called whenever an error happens in the Skype interface.
    * <p>
@@ -17,5 +15,4 @@ public interface ErrorListener {
    * @param e The error thrown by the Skype interface.
    */
   void error(IOException e);
-
 }

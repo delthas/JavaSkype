@@ -29,11 +29,11 @@ public enum Presence {
    */
   OFFLINE("");
   private final String presenceString;
-
+  
   Presence(String presenceString) {
     this.presenceString = presenceString;
   }
-
+  
   static Presence getPresence(String presenceString) {
     for (int i = 0; i < Presence.values().length; i++) {
       if (Presence.values()[i].presenceString.equalsIgnoreCase(presenceString)) {
@@ -42,7 +42,7 @@ public enum Presence {
     }
     throw new IllegalArgumentException("Unknown presence string: " + presenceString);
   }
-
+  
   String getPresenceString() {
     return presenceString;
   }

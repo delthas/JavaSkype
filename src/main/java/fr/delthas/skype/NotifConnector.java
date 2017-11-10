@@ -27,7 +27,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 class NotifConnector {
-
   private static final Logger logger = Logger.getLogger("fr.delthas.skype.notif");
   private static final String EPID = generateEPID(); // generate EPID at runtime
   private static final String DEFAULT_SERVER_HOSTNAME = "s.gateway.messenger.live.com";
@@ -35,31 +34,81 @@ class NotifConnector {
   private static final Pattern patternFirstLine = Pattern.compile("([A-Z]+|\\d+) \\d+ ([A-Z]+(?:\\\\[A-Z]+)?) (\\d+)");
   private static final Pattern patternHeaders = Pattern.compile("\\A(?:(?:Set-Registration: (.+)|[A-Za-z\\-]+: .+)\\R)*\\R");
   private static final Pattern patternXFR = Pattern.compile("([a-zA-Z0-9\\.\\-]+):(\\d+)");
-  private static final long pingInterval = 2 * 60000000000L; // minutes
+  private static final long pingInterval = 30 * 1000000000L; // seconds
   private final DocumentBuilder documentBuilder;
   private final Skype skype;
   private final String username, password;
+  private final boolean microsoft;
+  private volatile String loginToken, liveToken;
   private long lastMessageSentTime;
+  private Thread receiverThread;
   private Thread pingThread;
   private boolean disconnectRequested = false;
+  private boolean authenticated = false;
   private Socket socket;
   private BufferedWriter writer;
   private BufferedInputStream inputStream;
   private int sequenceNumber;
   private String registration;
   private CountDownLatch connectLatch = new CountDownLatch(1);
+  
   public NotifConnector(Skype skype, String username, String password) {
     this.skype = skype;
     this.username = username;
     this.password = password;
+    microsoft = username.contains("@");
     try {
       documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
     } catch (ParserConfigurationException e) {
       // Should never happen, throw RE if it does
       throw new RuntimeException(e);
     }
+    receiverThread = new Thread(() -> {
+      while (!disconnectRequested) {
+        try {
+          Packet packet = readPacket();
+          if (packet == null) {
+            continue;
+          }
+          processPacket(packet);
+        } catch (IOException e) {
+          if (disconnectRequested) {
+            // there may be errors reading from the closed stream when disconnecting
+            // quit without throwing
+            return;
+          }
+          logger.log(Level.SEVERE, "Error while reading packet", e);
+          skype.error(e);
+          connectLatch.countDown();
+          break;
+        }
+      }
+    }, "Skype-Receiver-Thread");
+    // TODO should we set daemon?
+    // receiverThread.setDaemon(true);
+    
+    pingThread = new Thread(() -> {
+      while (!Thread.interrupted() && !disconnectRequested) {
+        if (System.nanoTime() - lastMessageSentTime > pingInterval) {
+          try {
+            sendPacket("PNG", "CON", "");
+            sendPacket("PUT", "MSGR\\ACTIVEENDPOINT", "<activeendpoint><timeout>135</timeout></activeendpoint>");
+          } catch (IOException e) {
+            logger.log(Level.SEVERE, "Error while sending ping", e);
+            skype.error(e);
+            break;
+          }
+        }
+        try {
+          Thread.sleep(pingInterval / 1000000);
+        } catch (InterruptedException ignore) {
+          return;
+        }
+      }
+    }, "Skype-Ping-Thread");
+    pingThread.setDaemon(true);
   }
-
+  
   private static String generateEPID() {
     char[] hexCharacters = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     // EPID format: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
@@ -88,11 +137,11 @@ class NotifConnector {
     logger.finest("Generated EPID: " + EPID);
     return EPID;
   }
-
+  
   private static String getPlaintext(String string) {
     return Jsoup.parseBodyFragment(string).text();
   }
-
+  
   private static String getSanitized(String raw) {
     if (raw.isEmpty()) {
       return raw;
@@ -107,10 +156,7 @@ class NotifConnector {
             sb.append('\r').append('\n');
           }
           crFlag = true;
-        } else if (c == '\n') {
-          sb.append('\r').append('\n');
-          crFlag = false;
-        } else if (crFlag) {
+        } else if (c == '\n' || crFlag) {
           sb.append('\r').append('\n');
           crFlag = false;
         }
@@ -127,7 +173,7 @@ class NotifConnector {
     }
     return sb.toString();
   }
-
+  
   private void processPacket(Packet packet) throws IOException {
     logger.finer("Received packet " + packet.command + " " + packet.params);
     logger.finest("Recieved packet body: " + packet.body);
@@ -146,7 +192,8 @@ class NotifConnector {
             case "recentconversations-response":
               NodeList conversationNodes = doc.getElementsByTagName("conversation");
               List<String> threadIds = new ArrayList<>();
-              outer: for (int i = 0; i < conversationNodes.getLength(); i++) {
+              outer:
+              for (int i = 0; i < conversationNodes.getLength(); i++) {
                 Node conversation = conversationNodes.item(i);
                 String id = null;
                 boolean isThread = false;
@@ -349,40 +396,55 @@ class NotifConnector {
         connectTo(hostname, port);
         break;
       case "CNT":
-        String nonce = getXMLField(packet.body, "nonce");
-        if (nonce == null) {
-          ParseException e = new ParseException("No nonce received in CNT message! Cannot compute UIC");
-          logger.log(Level.SEVERE, "", e);
-          throw e;
+        if (!microsoft) {
+          String nonce = getXMLField(packet.body, "nonce");
+          if (nonce == null) {
+            ParseException e = new ParseException("No nonce received in CNT message! Cannot compute UIC");
+            logger.log(Level.SEVERE, "", e);
+            throw e;
+          }
+          String uic;
+          try {
+            uic = UicConnector.getUICSkype(username, password, nonce);
+          } catch (GeneralSecurityException e) {
+            logger.log(Level.SEVERE, "Error when computing Skype UIC token", e);
+            throw new RuntimeException(e);
+          }
+          sendPacket("ATH", "CON\\USER", "<user><uic>" + uic + "</uic><id>" + username + "</id></user>");
+        } else {
+          String uic;
+          try {
+            uic = UicConnector.getUICMicrosoft(loginToken);
+          } catch (GeneralSecurityException e) {
+            logger.log(Level.SEVERE, "Error when computing Microsoft UIC token", e);
+            throw new RuntimeException(e);
+          }
+          String formattedATH = String.format("<user><ssl-compact-ticket>t=%s</ssl-compact-ticket><uic>%s</uic><id>%s</id><alias>%s</alias></user>", liveToken, uic, username, getSelfLiveUsername());
+          sendPacket("ATH", "CON\\USER", formattedATH);
         }
-        String uic;
-        try {
-          uic = UicConnector.getUIC(username, password, nonce);
-        } catch (GeneralSecurityException e) {
-          logger.log(Level.SEVERE, "Error when computing UIC token", e);
-          throw new RuntimeException(e);
-        }
-        sendPacket("ATH", "CON\\USER", "<user><uic>" + uic + "</uic><id>" + username + "</id></user>");
         break;
       case "ATH":
-        sendPacket("BND", "CON\\MSGR",
-            "<msgr><ver>2</ver><client><name>.</name><ver>.</ver><networks>skype</networks></client><epid>" + EPID + "</epid></msgr>");
+        if (!authenticated) {
+          authenticated = true;
+          sendPacket("BND", "CON\\MSGR",
+                  "<msgr><ver>2</ver><client><name>Skype</name><ver>0/7.44.0.104</ver><networks>skype</networks></client><epid>" + EPID + "</epid></msgr>");
+        }
         break;
       case "BND":
         String challenge = getXMLField(packet.body, "nonce");
         if (challenge != null) {
           logger.severe("Nonce field sent in BND message! Challenge needed but not included in this release: nonce: " + challenge);
           skype.error(new IOException(
-              "Skype sent a nonce in the BND request, but it shouldn't do so anymore. If you see this error please open an issue on https://github.com/Delthas/JavaSkype/issues"));
+                  "Skype sent a nonce in the BND request, but it shouldn't do so anymore. If you see this error please open an issue on https://github.com/Delthas/JavaSkype/issues"));
         }
         String formattedPublicationBody = String.format(
-            "<user><s n=\"IM\"><Status>%s</Status></s><sep n=\"IM\" epid=\"{%s}\"><Capabilities>0:4194560</Capabilities></sep><s n=\"SKP\"><Mood/><Skypename>%s</Skypename></s><sep n=\"SKP\" epid=\"{%s}\"><Version>.</Version><Seamless>true</Seamless></sep></user>",
-                skype.getSelf().getPresence().getPresenceString(), EPID, username, EPID);
-        String formattedPublicationMessage = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", "8:" + username, "Publication: 1.0",
-            formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
+                "<user><s n=\"IM\"><Status>%s</Status></s><sep n=\"IM\" epid=\"{%s}\"><Capabilities>0:4194560</Capabilities></sep><s n=\"SKP\"><Mood/><Skypename>%s</Skypename></s><sep n=\"SKP\" epid=\"{%s}\"><Version>24</Version><Seamless>true</Seamless></sep></user>",
+                skype.getSelf().getPresence().getPresenceString(), EPID, getSelfLiveUsername(), EPID);
+        String formattedPublicationMessage = FormattedMessage.format("8:" + getSelfLiveUsername() + ";epid={" + EPID + "}", "8:" + getSelfLiveUsername(), "Publication: 1.0",
+                formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
         sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
         sendPacket("PUT", "MSGR\\SUBSCRIPTIONS",
-            "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>");
+                "<subscribe><presence><buddies><all /></buddies></presence><messaging><im /><conversations /></messaging></subscribe>");
         StringBuilder contactsStringBuilder = new StringBuilder("<ml l=\"1\"><skp>");
         if (!skype.getContacts().isEmpty()) {
           for (User contact : skype.getContacts()) {
@@ -420,9 +482,8 @@ class NotifConnector {
       default:
         System.out.println("Received unknown message: " + packet);
     }
-
   }
-
+  
   private Packet readPacket() throws IOException {
     StringBuilder firstLineBuilder = new StringBuilder();
     int read;
@@ -477,15 +538,22 @@ class NotifConnector {
       }
       bytesRead += n;
     }
-
+    
     String payload = new String(payloadRaw, StandardCharsets.UTF_8);
-
+    
     if (command.matches("\\d+")) {
+      if (command.equals("715")) {
+        // sometimes when sending the right <name> in BND CON\MSGR
+        // a 715 "This connection already has a feature set" can be received
+        // it seems this can be ignored, however log it just in case
+        logger.log(Level.INFO, "715 error message received:\n" + firstLine + "\n" + payload);
+        return readPacket();
+      }
       ParseException e = new ParseException("Error message received:\n" + firstLine + "\n" + payload);
       logger.log(Level.SEVERE, "", e);
       throw e;
     }
-
+    
     Matcher matcherHeaders = patternHeaders.matcher(payload);
     if (!matcherHeaders.find()) {
       ParseException e = new ParseException("Couldn't find headers in payload: " + payload);
@@ -500,106 +568,89 @@ class NotifConnector {
     String body = payload.substring(matcherHeaders.end());
     return new Packet(command, parameters, body);
   }
-
-  public void connect() throws IOException, InterruptedException {
+  
+  public long connect(String loginToken, String liveToken) throws IOException, InterruptedException {
     logger.finer("Starting notification connector");
+    this.loginToken = loginToken;
+    this.liveToken = liveToken;
     disconnectRequested = false;
     lastMessageSentTime = System.nanoTime();
+    
+    long nanoTime = System.nanoTime();
     connectTo(DEFAULT_SERVER_HOSTNAME, DEFAULT_SERVER_PORT);
-    new Thread(() -> {
-      while (!disconnectRequested) {
-        try {
-          Packet packet = readPacket();
-          if (packet == null) {
-            continue;
-          }
-          processPacket(packet);
-        } catch (IOException e) {
-          if (disconnectRequested) {
-            // there may be errors reading from the closed stream when disconnecting
-            // quit without throwing
-            return;
-          }
-          logger.log(Level.SEVERE, "Error while reading packet", e);
-          skype.error(e);
-          connectLatch.countDown();
-          break;
-        }
-      }
-    }, "Skype-Receiver-Thread").start();
-
-    pingThread = new Thread(() -> {
-      while (!Thread.interrupted() && !disconnectRequested) {
-        if (System.nanoTime() - lastMessageSentTime > pingInterval) {
-          try {
-            sendPacket("PNG", "CON", "");
-            sendPacket("PUT", "MSGR\\ACTIVEENDPOINT", "<activeendpoint><timeout>135</timeout></activeendpoint>");
-          } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error while sending ping", e);
-            skype.error(e);
-            break;
-          }
-        }
-        try {
-          Thread.sleep(pingInterval / 1000000);
-        } catch (InterruptedException ignore) {
-          return;
-        }
-      }
-    }, "Skype-Ping-Thread");
+    
+    receiverThread.start();
+    
     logger.finest("Ping interval: " + pingInterval / 1000000 + "ms");
-
+    
     logger.finer("Waiting for connection");
     connectLatch.await(); // block until connected
-
+    
     pingThread.start();
+    
+    return nanoTime + 1000000000L * 24 * 60 * 60;
   }
-
+  
+  public long refreshTokens(String loginToken, String liveToken) throws IOException {
+    this.loginToken = loginToken;
+    this.liveToken = liveToken;
+    String uic;
+    try {
+      uic = UicConnector.getUICMicrosoft(loginToken);
+    } catch (GeneralSecurityException e) {
+      logger.log(Level.SEVERE, "Error when computing Microsoft UIC token", e);
+      throw new RuntimeException(e);
+    }
+    String formattedATH = String.format("<user><ssl-compact-ticket>t=%s</ssl-compact-ticket><uic>%s</uic><id>%s</id><alias>%s</alias></user>", liveToken, uic, username, getSelfLiveUsername());
+    sendPacket("ATH", "CON\\USER", formattedATH);
+    return System.nanoTime() + 1000000000L * 24 * 60 * 60;
+  }
+  
   public void sendUserMessage(User user, String message) throws IOException {
     sendMessage("8:" + user.getUsername(), getSanitized(message));
   }
-
+  
   public void sendGroupMessage(Group group, String message) throws IOException {
     sendMessage("19:" + group.getId() + "@thread.skype", getSanitized(message));
   }
-
+  
   public void addUserToGroup(User user, Role role, Group group) throws IOException {
     String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
-        group.getId(), user.getUsername(), role.getRoleString());
+            group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
-
+  
   public void removeUserFromGroup(User user, Group group) throws IOException {
     String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri></member></members></thread>", group.getId(),
-        user.getUsername());
+            user.getUsername());
     sendPacket("DEL", "MSGR\\THREAD", body);
   }
-
+  
   public void changeGroupTopic(Group group, String topic) throws IOException {
     String body =
-        String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
+            String.format("<thread><id>19:%s@thread.skype</id><properties><topic>%s</topic></properties></thread>", group.getId(), getSanitized(topic));
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
-
+  
   public void changeUserRole(User user, Role role, Group group) throws IOException {
     String body = String.format("<thread><id>19:%s@thread.skype</id><members><member><mri>8:%s</mri><role>%s</role></member></members></thread>",
-        group.getId(), user.getUsername(), role.getRoleString());
+            group.getId(), user.getUsername(), role.getRoleString());
     sendPacket("PUT", "MSGR\\THREAD", body);
   }
-
+  
   public void changePresence(Presence presence) throws IOException {
     String formattedPublicationBody = String.format("<user><s n=\"IM\"><Status>%s</Status></s></user>", presence.getPresenceString());
-    String formattedPublicationMessage = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", "8:" + username, "Publication: 1.0",
-        formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
+    String formattedPublicationMessage = FormattedMessage.format("8:" + getSelfLiveUsername() + ";epid={" + EPID + "}", "8:" + getSelfLiveUsername(), "Publication: 1.0",
+            formattedPublicationBody, "Uri: /user", "Content-Type: application/user+xml");
     sendPacket("PUT", "MSGR\\PRESENCE", formattedPublicationMessage);
   }
-
+  
   private void sendMessage(String entity, String message) throws IOException {
-    String body = FormattedMessage.format("8:" + username + ";epid={" + EPID + "}", entity, "Messaging: 2.0", message,
-        "Content-Type: application/user+xml", "Message-Type: RichText");
+    String body = FormattedMessage.format("8:" + getSelfLiveUsername() + ";epid={" + EPID + "}", entity, "Messaging: 2.0", message,
+            "Content-Type: application/user+xml", "Message-Type: RichText");
     sendPacket("SDG", "MSGR", body);
   }
-
+  
   public synchronized void disconnect() {
     logger.finer("Stopping notification connector");
     try {
@@ -608,7 +659,9 @@ class NotifConnector {
       // we're closing anyway
       logger.log(Level.FINE, "Error received while disconnecting", e);
     }
+    authenticated = false;
     disconnectRequested = true;
+    receiverThread.interrupt();
     pingThread.interrupt();
     connectLatch.countDown();
     if (socket != null) {
@@ -620,11 +673,11 @@ class NotifConnector {
       }
     }
   }
-
+  
   private synchronized void sendPacket(String command, String parameters, String body) throws IOException {
     String headerString = registration != null ? "Registration: " + registration + "\r\n" : "";
     String messageString = String.format("%s %d %s %d\r\n%s\r\n%s", command, ++sequenceNumber, parameters,
-        body.getBytes(StandardCharsets.UTF_8).length + 2 + headerString.length(), headerString, body);
+            body.getBytes(StandardCharsets.UTF_8).length + 2 + headerString.length(), headerString, body);
     try {
       writer.write(messageString);
       writer.flush();
@@ -635,7 +688,7 @@ class NotifConnector {
     logger.finest("Sent packet: " + messageString);
     lastMessageSentTime = System.nanoTime();
   }
-
+  
   private void connectTo(String hostname, int port) throws IOException {
     logger.finest("Connecting to hostname: " + hostname + " port: " + port);
     if (socket != null) {
@@ -645,9 +698,9 @@ class NotifConnector {
     writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
     inputStream = new BufferedInputStream(socket.getInputStream());
     sequenceNumber = 0;
-    sendPacket("CNT", "CON", "<connect><ver>2</ver><agent><os>winnt</os><osVer>5.2</osVer><proc>x86</proc><lcid>en-us</lcid></agent></connect>");
+    sendPacket("CNT", "CON", "<connect><ver>2</ver><agent><os>Windows</os><osVer>Windows 10.0  (build</osVer><proc>8 3600 I-586-6-45-7 Intel Core i</proc><lcid>en-US</lcid></agent></connect>");
   }
-
+  
   private void updateThread(Node threadNode) {
     Group group = null;
     String topic = null;
@@ -699,12 +752,18 @@ class NotifConnector {
     group.setTopic(topic);
     group.setUsers(users);
   }
-
+  
   private Object parseEntity(String rawEntity) {
     // returns a user or a group
     logger.finest("Parsing entity " + rawEntity);
     int senderBegin = rawEntity.indexOf(':');
-    int network = Integer.parseInt(rawEntity.substring(0, senderBegin));
+    int network;
+    try {
+      network = Integer.parseInt(rawEntity.substring(0, senderBegin));
+    } catch (NumberFormatException e) {
+      logger.warning("Error while parsing entity " + rawEntity + ": unknown network format:" + rawEntity);
+      throw new IllegalArgumentException();
+    }
     int end0 = rawEntity.indexOf('@');
     int end1 = rawEntity.indexOf(';');
     if (end0 == -1) {
@@ -724,6 +783,8 @@ class NotifConnector {
       return skype.getUser(name);
     } else if (network == 19) {
       return skype.getGroup(name);
+    } else if (network == 1) {
+      return skype.getUser("live:" + name);
     } else if (network == 4) {
       return null;
     } else {
@@ -731,7 +792,7 @@ class NotifConnector {
       throw new IllegalArgumentException();
     }
   }
-
+  
   private Document getDocument(String XML) throws ParseException {
     try {
       return documentBuilder.parse(new InputSource(new StringReader(XML)));
@@ -741,7 +802,7 @@ class NotifConnector {
       throw new ParseException(e);
     }
   }
-
+  
   private List<String> getXMLFields(String XML, String fieldName) throws ParseException {
     NodeList nodes = getDocument(XML).getElementsByTagName(fieldName);
     List<String> fields = new ArrayList<>(nodes.getLength());
@@ -750,7 +811,7 @@ class NotifConnector {
     }
     return fields;
   }
-
+  
   private String getXMLField(String XML, String fieldName) throws ParseException {
     List<String> fields = getXMLFields(XML, fieldName);
     if (fields.size() > 1) {
@@ -761,23 +822,29 @@ class NotifConnector {
     }
     return fields.get(0);
   }
-
+  
+  private String getSelfLiveUsername() {
+    if (microsoft) {
+      return "live:" + username.substring(0, username.indexOf('@'));
+    } else {
+      return username;
+    }
+  }
+  
   private static class Packet {
     public final String command;
     public final String params;
     public final String body;
-
+  
     public Packet(String command, String params, String body) {
       this.command = command;
       this.params = params;
       this.body = body;
     }
-
+  
     @Override
     public String toString() {
       return String.format("Command: %s Params: %s Body: %s", command, params, body);
     }
-
   }
-
 }

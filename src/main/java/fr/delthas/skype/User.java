@@ -22,26 +22,26 @@ public class User {
   private String displayName;
   private String avatarUrl;
   private Presence presence = Presence.OFFLINE;
-
+  
   User(Skype skype, String username) {
     this.skype = skype;
     this.username = username;
   }
-
+  
   /**
    * Blocks this user (without reporting the account).
    */
   public void block() {
     skype.block(this);
   }
-
+  
   /**
    * Unblocks this user.
    */
   public void unblock() {
     skype.unblock(this);
   }
-
+  
   /**
    * Sends a contact request to this account.
    *
@@ -50,14 +50,14 @@ public class User {
   public void sendContactRequest(String greeting) {
     skype.sendContactRequest(this, greeting);
   }
-
+  
   /**
    * Removes this user from the list of contacts of the Skype account. If the user isn't a contact, nothing happens.
    */
   public void removeFromContacts() {
     skype.removeFromContacts(this);
   }
-
+  
   /**
    * Sends a message to this user.
    *
@@ -66,14 +66,14 @@ public class User {
   public void sendMessage(String message) {
     skype.sendUserMessage(this, message);
   }
-
+  
   /**
    * @return The username of this user.
    */
   public String getUsername() {
     return username;
   }
-
+  
   /**
    * @return The display name ("pretty" name) of this user.
    */
@@ -89,70 +89,70 @@ public class User {
     }
     return username;
   }
-
+  
   void setDisplayName(String displayName) {
     if (displayName == null || displayName.isEmpty()) {
       return;
     }
     this.displayName = displayName;
   }
-
+  
   /**
    * @return The first name of this user, or null if not visible.
    */
   public String getFirstname() {
     return firstname;
   }
-
+  
   /**
    * @return The last name of this user, or null if not visible.
    */
   public String getLastname() {
     return lastname;
   }
-
+  
   /**
    * @return The mood (status) of this user, or null if not visible.
    */
   public String getMood() {
     return mood;
   }
-
+  
   void setMood(String mood) {
     if (mood == null || mood.isEmpty()) {
       return;
     }
     this.mood = mood;
   }
-
+  
   /**
    * @return Two letters identifying this user's country (e.g. us), or null if not visible.
    */
   public String getCountry() {
     return country;
   }
-
+  
   void setCountry(String country) {
     if (country == null || country.isEmpty()) {
       return;
     }
     this.country = country;
   }
-
+  
   /**
    * @return The city of this user, or null if not visible.
    */
   public String getCity() {
     return city;
   }
-
+  
   void setCity(String city) {
     if (city == null || city.isEmpty()) {
       return;
     }
     this.city = city;
   }
-
+  
   /**
    * Fetches and returns the avatar of the user, or null if the avatar is not visible.
    * <p>
@@ -166,7 +166,7 @@ public class User {
   public byte[] getAvatar() {
     return skype.getAvatar(this);
   }
-
+  
   /**
    * Fetches and returns the avatar of the user as a {@link BufferedImage}, or null if the avatar is not visible.
    * <p>
@@ -186,7 +186,7 @@ public class User {
       return null;
     }
   }
-
+  
   /**
    * Returns an URL (http/https) to fetch the avatar of this user (with a GET request), or null if it is not visible.
    * <p>
@@ -199,14 +199,14 @@ public class User {
   public String getAvatarUrl() {
     return avatarUrl;
   }
-
+  
   void setAvatarUrl(String avatarUrl) {
     if (avatarUrl == null || avatarUrl.isEmpty()) {
       return;
     }
     this.avatarUrl = avatarUrl;
   }
-
+  
   /**
    * @return The presence of this user
    * @see Presence
@@ -214,29 +214,29 @@ public class User {
   public Presence getPresence() {
     return presence;
   }
-
-  void setPresence(String presenceString) {
-    setPresence(Presence.getPresence(presenceString), true);
-  }
-
+  
   void setPresence(Presence presence) {
     setPresence(presence, true);
   }
-
+  
+  void setPresence(String presenceString) {
+    setPresence(Presence.getPresence(presenceString), true);
+  }
+  
   void setFirstName(String firstname) {
     if (firstname == null || firstname.isEmpty()) {
       return;
     }
     this.firstname = firstname;
   }
-
+  
   void setLastName(String lastname) {
     if (lastname == null || lastname.isEmpty()) {
       return;
     }
     this.lastname = lastname;
   }
-
+  
   void setPresence(Presence presence, boolean triggerListeners) {
     if (presence != this.presence) {
       Presence oldPresence = this.presence;
@@ -246,7 +246,7 @@ public class User {
       }
     }
   }
-
+  
   @Override
   public int hashCode() {
     final int prime = 31;
@@ -254,7 +254,7 @@ public class User {
     result = prime * result + (username == null ? 0 : username.hashCode());
     return result;
   }
-
+  
   @Override
   public boolean equals(Object obj) {
     if (this == obj) {
@@ -276,7 +276,7 @@ public class User {
     }
     return true;
   }
-
+  
   @Override
   public String toString() {
     return "User: " + getUsername();

@@ -10,22 +10,20 @@ import java.util.stream.Collectors;
  * A conversation between some Skype users.
  * <p>
  * All information will be updated as updates are received (this object <b>is NOT</b> an immutable view/snapshot of a group).
- *
  */
 public class Group {
-
   private final Skype skype;
   private final String id;
   private List<Pair<User, Role>> users;
   private String topic;
-
+  
   Group(Skype skype, String id) {
     this.skype = skype;
     this.id = id;
     users = Collections.emptyList();
     topic = "";
   }
-
+  
   /**
    * Sends a message to the group.
    *
@@ -34,29 +32,29 @@ public class Group {
   public void sendMessage(String message) {
     skype.sendGroupMessage(this, message);
   }
-
+  
   /**
    * The id of a group is a special String used by Skype to uniquely identify groups.
    * <p>
-   * In case you know about network IDs and the like: if a group "adress" is "19:xxx@thread.skype", its id is "xxx".
+   * In case you know about network IDs and the like: if a group "address" is "19:xxx@thread.skype", its id is "xxx".
    *
    * @return The id of the group.
    */
   public String getId() {
     return id;
   }
-
+  
   /**
    * @return The topic of the group.
    */
   public String getTopic() {
     return topic;
   }
-
+  
   void setTopic(String topic) {
     this.topic = topic;
   }
-
+  
   /**
    * Changes the topic of this group
    *
@@ -65,31 +63,30 @@ public class Group {
   public void changeTopic(String topic) {
     skype.changeGroupTopic(this, topic);
   }
-
+  
   /**
    * @return The list of users in the group with their roles.
    */
   public List<Pair<User, Role>> getUsersWithRoles() {
     return users;
   }
-
+  
   /**
    * @return The list of users in the group.
    */
   public List<User> getUsers() {
     return users.stream().map(Pair::getFirst).collect(Collectors.toList());
   }
-
+  
   void setUsers(List<Pair<User, Role>> users) {
     this.users = users;
   }
-
+  
   /**
    * Adds a user to this group and gives him the specified role. Group admin rights are needed if the role is {@link Role#ADMIN}.
    *
    * @param user The user to add to this group.
    * @param role The role of the newly added user.
-   *
    * @return true if the user wasn't in the group, and the Skype account has group admin rights if needed.
    */
   public boolean addUser(User user, Role role) {
@@ -106,14 +103,12 @@ public class Group {
     skype.addUserToGroup(user, role, this);
     return true;
   }
-
+  
   /**
    * Removes a user from this group. Group admin rights are needed.
    *
    * @param user The user to remove from this group.
-   *
    * @return true if the Skype account has admin rights, and the user was in the group.
-   *
    * @see #isSelfAdmin()
    */
   public boolean removeUser(User user) {
@@ -132,15 +127,13 @@ public class Group {
     }
     return true;
   }
-
+  
   /**
    * Changes the role of a user in this group. Group admin rights are needed.
    *
    * @param user The user whose role is to be changed
    * @param role The new role of the user.
-   *
    * @return true if the Skype account has admin rights, and the user was in the group and didn't have this role already.
-   *
    * @see #isSelfAdmin()
    */
   public boolean changeUserRole(User user, Role role) {
@@ -164,7 +157,7 @@ public class Group {
     }
     return false;
   }
-
+  
   /**
    * @return true if the Skype account has admin rights on this group.
    */
@@ -177,7 +170,7 @@ public class Group {
     }
     return false;
   }
-
+  
   @Override
   public int hashCode() {
     final int prime = 31;
@@ -185,7 +178,7 @@ public class Group {
     result = prime * result + (id == null ? 0 : id.hashCode());
     return result;
   }
-
+  
   @Override
   public boolean equals(Object obj) {
     if (this == obj) {
@@ -207,10 +200,9 @@ public class Group {
     }
     return true;
   }
-
+  
   @Override
   public String toString() {
     return "Group: " + getId();
   }
-
 }
