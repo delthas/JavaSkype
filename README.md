@@ -98,13 +98,13 @@ The main entry points are :
 - the listeners you can put on the Skype object
 - the User and Group objects you get from Skype or from the listeners
 
-The javadoc for the API is located at: https://skype.delthas.fr/
+The javadoc for the API is located at: http://www.javadoc.io/doc/fr.delthas/javaskype/
 
 Note that this API doesn't support multithreaded calls: if you want to go for some multithreading, you will have to handle the synchronization yourself. You can however run multiple Skype accounts simultaneously, on the same or different threads.
 
 ## Building
 
-Simply run ```maven package```.
+Simply run ```mvn install```.
 
 ## Misceallenous
 
