@@ -225,7 +225,7 @@ class NotifConnector {
                   continue outer;
                 }
                 Group group = (Group) parseEntity(id);
-                threadIds.add(group.getId());
+                if (group != null) { threadIds.add(group.getId()); }
               }
               if (!threadIds.isEmpty()) {
                 logger.finest("Fetching threads information");
@@ -785,7 +785,7 @@ class NotifConnector {
       return skype.getGroup(name);
     } else if (network == 1) {
       return skype.getUser("live:" + name);
-    } else if (network == 4) {
+    } else if (network == 4 || network == 28) {
       return null;
     } else {
       logger.warning("Error while parsing entity " + rawEntity + ": unknown network:" + network);

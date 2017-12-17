@@ -88,11 +88,14 @@ class WebConnector {
     JSONObject selfJSON = new JSONObject(selfResponse);
     updateUser(selfJSON, false);
     
-    String filterString = "authorized eq true and blocked eq false and suggested eq false";
     String profilesResponse =
-            sendRequest(Method.GET, "https://contacts.skype.com/contacts/v1/users/" + getSelfLiveUsername() + "/contacts?$filter=" + filterString, true).body();
+            sendRequest(Method.GET, "https://contacts.skype.com/contacts/v2/users/" + getSelfLiveUsername() + "/contacts", true).body();
     try {
-      JSONArray profilesJSON = new JSONObject(profilesResponse).getJSONArray("contacts");
+      JSONObject json = new JSONObject(profilesResponse);
+      if (json.optString("message", null) != null) {
+        throw new ParseException("Error while parsing contacts response: " + json.optString("message"));
+      }
+      JSONArray profilesJSON = json.getJSONArray("contacts");
       for (int i = 0; i < profilesJSON.length(); i++) {
         User user = updateUser(profilesJSON.getJSONObject(i), true);
         if (user != null && !user.getUsername().equalsIgnoreCase("echo123")) {
@@ -124,24 +127,37 @@ class WebConnector {
         userDisplayName = userJSON.optString("displayname", null);
         userAvatarUrl = userJSON.optString("avatarUrl");
       } else {
-        String type = userJSON.getString("type");
-        if (!type.equalsIgnoreCase("skype")) {
+        if (userJSON.optBoolean("blocked", false)) { return null; }
+        if (!userJSON.optBoolean("authorized", false)) { return null; }
+        if (userJSON.optBoolean("suggested", false)) { return null; }
+  
+        String mri = userJSON.getString("mri");
+        int senderBegin = mri.indexOf(':');
+        int network;
+        try {
+          network = Integer.parseInt(mri.substring(0, senderBegin));
+        } catch (NumberFormatException e) {
+          logger.warning("Error while parsing entity " + mri + ": unknown network format:" + mri);
           return null;
         }
-        userUsername = userJSON.getString("id");
+        if (network != 8) {
+          return null;
+        }
+        userUsername = mri.substring(senderBegin + 1);
         userDisplayName = userJSON.optString("display_name", null);
-        JSONObject nameJSON = userJSON.getJSONObject("name");
+        JSONObject profileJSON = userJSON.getJSONObject("profile");
+        JSONObject nameJSON = profileJSON.getJSONObject("name");
         userFirstName = nameJSON.optString("first", null);
         userLastName = nameJSON.optString("surname", null);
-        userMood = userJSON.optString("mood", null);
-        if (userJSON.has("locations")) {
-          JSONObject locationJSON = userJSON.optJSONArray("locations").optJSONObject(0);
+        userMood = profileJSON.optString("mood", null);
+        if (profileJSON.has("locations")) {
+          JSONObject locationJSON = profileJSON.optJSONArray("locations").optJSONObject(0);
           if (locationJSON != null) {
             userCountry = locationJSON.optString("country", null);
             userCity = locationJSON.optString("city", null);
           }
         }
-        userAvatarUrl = userJSON.optString("avatar_url");
+        userAvatarUrl = profileJSON.optString("avatar_url");
       }
     } catch (JSONException e) {
       throw new ParseException(e);

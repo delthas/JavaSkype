@@ -147,18 +147,22 @@ public final class Skype {
   
     long expires = Long.MAX_VALUE;
   
-    if (microsoft) {
-      // webConnector and notifConnector depend on liveConnector
-      expires = liveConnector.refreshTokens();
-    }
-  
-    // notifConnector depends on webConnector
-    expires = Long.min(expires, webConnector.refreshTokens(liveConnector.getSkypeToken()));
+    try {
+      if (microsoft) {
+        // webConnector and notifConnector depend on liveConnector
+        expires = liveConnector.refreshTokens();
+      }
     
-    getSelf().setPresence(presence, false);
-  
-    // will block until connected
-    expires = Long.min(expires, notifConnector.connect(liveConnector.getLoginToken(), liveConnector.getLiveToken()));
+      // notifConnector depends on webConnector
+      expires = Long.min(expires, webConnector.refreshTokens(liveConnector.getSkypeToken()));
+    
+      getSelf().setPresence(presence, false);
+    
+      // will block until connected
+      expires = Long.min(expires, notifConnector.connect(liveConnector.getLoginToken(), liveConnector.getLiveToken()));
+    } catch (IOException e) {
+      throw new IOException("Error thrown during connection. Check your credentials?", e);
+    }
   
     this.expires = expires;
     
@@ -166,7 +170,7 @@ public final class Skype {
   
     if (exceptionDuringConnection != null) {
       // an exception has been thrown during connection
-      throw new IOException("Error thrown during connection. Check your credentials", exceptionDuringConnection);
+      throw new IOException("Error thrown during connection. Check your credentials?", exceptionDuringConnection);
     }
   
     refreshThread.start();
