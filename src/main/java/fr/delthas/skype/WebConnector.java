@@ -118,7 +118,7 @@ class WebConnector {
     String userAvatarUrl = null;
     try {
       if (!newContactType) {
-        userUsername = userJSON.getString("username");
+        userUsername = userJSON.optString("username");
         userFirstName = userJSON.optString("firstname", null);
         userLastName = userJSON.optString("lastname", null);
         userMood = userJSON.optString("mood", null);
@@ -220,6 +220,7 @@ class WebConnector {
     logger.finest("Sending " + method + " request at " + url);
     if (skypeToken != null) {
       conn.header("X-Skypetoken", skypeToken);
+      conn.header("Accept", "application/json");
     } else {
       logger.fine("No token sent for the request at: " + url);
     }
