@@ -21,6 +21,7 @@ public class User {
   private String city;
   private String displayName;
   private String avatarUrl;
+  private String liveUsername;
   private Presence presence = Presence.OFFLINE;
   
   User(Skype skype, String username) {
@@ -245,6 +246,14 @@ public class User {
         skype.userPresenceChanged(this, oldPresence, presence);
       }
     }
+  }
+  
+  public String getLiveUsername() {
+    return liveUsername;
+  }
+
+  public void setLiveUsername(String liveUsername) {
+    this.liveUsername = liveUsername;
   }
   
   @Override

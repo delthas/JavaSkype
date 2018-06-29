@@ -824,11 +824,7 @@ class NotifConnector {
   }
   
   private String getSelfLiveUsername() {
-    if (microsoft) {
-      return "live:" + username.substring(0, username.indexOf('@'));
-    } else {
-      return username;
-    }
+    return skype.getUser(username).getLiveUsername();
   }
   
   private static class Packet {
