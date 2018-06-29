@@ -13,6 +13,10 @@ public enum Presence {
    */
   AWAY("AWY"),
   /**
+   * Idle / Absent
+   */
+  IDLE("IDL"),
+  /**
    * Busy / Do Not Disturb (red sign on Skype)
    */
   BUSY("BSY"),
