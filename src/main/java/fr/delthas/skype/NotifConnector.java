@@ -675,7 +675,9 @@ class NotifConnector {
   }
   
   private synchronized void sendPacket(String command, String parameters, String body) throws IOException {
-    String headerString = registration != null ? "Registration: " + registration + "\r\n" : "";
+//    String headerString = registration != null ? "Registration: " + registration + "\r\n" : "";
+    // Weird, but it's working better without sending the registration token. Solved the 911 problem but needs more testing.
+    String headerString = "";
     String messageString = String.format("%s %d %s %d\r\n%s\r\n%s", command, ++sequenceNumber, parameters,
             body.getBytes(StandardCharsets.UTF_8).length + 2 + headerString.length(), headerString, body);
     try {
@@ -698,6 +700,7 @@ class NotifConnector {
     writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
     inputStream = new BufferedInputStream(socket.getInputStream());
     sequenceNumber = 0;
+    authenticated = false;
     sendPacket("CNT", "CON", "<connect><ver>2</ver><agent><os>Windows</os><osVer>Windows 10.0  (build</osVer><proc>8 3600 I-586-6-45-7 Intel Core i</proc><lcid>en-US</lcid></agent></connect>");
   }
   
@@ -779,7 +782,7 @@ class NotifConnector {
     } else {
       name = rawEntity.substring(senderBegin + 1, senderEnd);
     }
-    if (network == 8) {
+    if (network == 8 || network == 2) { // Skype4Business contacts come with network == 2, courtesy of @metasonic
       return skype.getUser(name);
     } else if (network == 19) {
       return skype.getGroup(name);
