@@ -48,7 +48,6 @@ public final class Skype {
   private boolean connecting = false;
   private volatile long expires;
   private IOException exceptionDuringConnection;
-  private User me;
   
   // --- Public API (except listeners add/remove methods) --- //
   

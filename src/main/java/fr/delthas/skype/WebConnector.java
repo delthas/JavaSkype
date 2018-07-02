@@ -153,8 +153,6 @@ class WebConnector {
         userDisplayName = userJSON.optString("display_name", null);
         JSONObject profileJSON = userJSON.getJSONObject("profile");
         
-        userFirstName = userUsername;
-        userLastName = "";
         if (profileJSON.has("name")) {
             JSONObject nameJSON = profileJSON.getJSONObject("name");
             userFirstName = nameJSON.optString("first", null);

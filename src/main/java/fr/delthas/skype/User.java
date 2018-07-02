@@ -248,11 +248,11 @@ public class User {
     }
   }
   
-  public String getLiveUsername() {
+  String getLiveUsername() {
     return liveUsername;
   }
 
-  public void setLiveUsername(String liveUsername) {
+  void setLiveUsername(String liveUsername) {
     this.liveUsername = liveUsername;
   }
   
