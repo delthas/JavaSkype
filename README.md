@@ -1,5 +1,7 @@
 # JavaSkype
 
+### As of 2019/04/09, MSNP24 is gone for good. This library stopped working and won't be updated anymore. Thanks to the [msndevs](https://github.com/msndevs) team, and to [dx](https://github.com/dequis) and [dos-freak](https://github.com/leecher1337) in particular for all their work on reverse-engineering the Skype client and making it possible to create libraries like this. Moving forward, you can now try to use libraries that support the new Skype Web API, for example [skype4pidgin](https://github.com/EionRobb/skype4pidgin/tree/master/skypeweb), or create an [official Skype bot](https://dev.skype.com/bots).
+
 ## Recent changes
 - Now supports Microsoft accounts ([#24](https://github.com/Delthas/JavaSkype/issues/24))
 
