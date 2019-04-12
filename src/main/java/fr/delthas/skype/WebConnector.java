@@ -86,10 +86,12 @@ class WebConnector {
     updated = true;
     String selfResponse = sendRequest(Method.GET, "/users/self/profile").body();
     JSONObject selfJSON = new JSONObject(selfResponse);
-    updateUser(selfJSON, false);
+    
+    User loggedUser = updateUser(selfJSON, false, username);
     
     String profilesResponse =
-            sendRequest(Method.GET, "https://contacts.skype.com/contacts/v2/users/" + getSelfLiveUsername() + "/contacts", true).body();
+            sendRequest(Method.GET, "https://contacts.skype.com/contacts/v2/users/" + loggedUser.getLiveUsername() + "/contacts", true).body();
+    
     try {
       JSONObject json = new JSONObject(profilesResponse);
       if (json.optString("message", null) != null) {
@@ -108,6 +110,10 @@ class WebConnector {
   }
   
   private User updateUser(JSONObject userJSON, boolean newContactType) throws ParseException {
+    return updateUser(userJSON, newContactType, null);
+  }
+  
+  private User updateUser(JSONObject userJSON, boolean newContactType, String username) throws ParseException {
     String userUsername;
     String userFirstName = null;
     String userLastName = null;
@@ -118,7 +124,7 @@ class WebConnector {
     String userAvatarUrl = null;
     try {
       if (!newContactType) {
-        userUsername = userJSON.getString("username");
+        userUsername = userJSON.optString("username");
         userFirstName = userJSON.optString("firstname", null);
         userLastName = userJSON.optString("lastname", null);
         userMood = userJSON.optString("mood", null);
@@ -146,9 +152,13 @@ class WebConnector {
         userUsername = mri.substring(senderBegin + 1);
         userDisplayName = userJSON.optString("display_name", null);
         JSONObject profileJSON = userJSON.getJSONObject("profile");
-        JSONObject nameJSON = profileJSON.getJSONObject("name");
-        userFirstName = nameJSON.optString("first", null);
-        userLastName = nameJSON.optString("surname", null);
+        
+        if (profileJSON.has("name")) {
+            JSONObject nameJSON = profileJSON.getJSONObject("name");
+            userFirstName = nameJSON.optString("first", null);
+            userLastName = nameJSON.optString("surname", null);
+        }
+        
         userMood = profileJSON.optString("mood", null);
         if (profileJSON.has("locations")) {
           JSONObject locationJSON = profileJSON.optJSONArray("locations").optJSONObject(0);
@@ -162,7 +172,7 @@ class WebConnector {
     } catch (JSONException e) {
       throw new ParseException(e);
     }
-    User user = skype.getUser(userUsername);
+    User user = skype.getUser(username != null ? username : userUsername);
     user.setCity(getPlaintext(userCity));
     user.setCountry(getPlaintext(userCountry));
     user.setDisplayName(getPlaintext(userDisplayName));
@@ -170,6 +180,7 @@ class WebConnector {
     user.setLastName(getPlaintext(userLastName));
     user.setMood(getPlaintext(userMood));
     user.setAvatarUrl(userAvatarUrl);
+    user.setLiveUsername(userUsername);
     return user;
   }
   
@@ -220,6 +231,7 @@ class WebConnector {
     logger.finest("Sending " + method + " request at " + url);
     if (skypeToken != null) {
       conn.header("X-Skypetoken", skypeToken);
+      conn.header("Accept", "application/json");
     } else {
       logger.fine("No token sent for the request at: " + url);
     }
@@ -229,13 +241,5 @@ class WebConnector {
   
   private Response sendRequest(Method method, String apiPath, String... keyval) throws IOException {
     return sendRequest(method, apiPath, false, keyval);
-  }
-  
-  private String getSelfLiveUsername() {
-    if (username.contains("@")) {
-      return "live:" + username.substring(0, username.indexOf('@'));
-    } else {
-      return username;
-    }
   }
 }
